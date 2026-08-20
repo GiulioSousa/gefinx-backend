@@ -7,6 +7,7 @@ import com.financas.backend.financas.dominio.TipoTransacao;
 import com.financas.backend.financas.dominio.excecoes.CategoriaDuplicadaException;
 import com.financas.backend.financas.dominio.excecoes.CategoriaEmUsoException;
 import com.financas.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
+import com.financas.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -41,8 +42,17 @@ public class CategoriaService {
         return repositorioCategoria.salvar(Categoria.nova(nome, tipo, usuarioId));
     }
 
+    /**
+     * Renomear é sempre permitido; o tipo fica travado enquanto a categoria tiver
+     * transações. Trocá-lo inverteria o sentido dos lançamentos já feitos — uma despesa
+     * passaria a contar como receita no saldo, sem que ninguém tivesse pedido isso.
+     */
     public Categoria atualizar(Long usuarioId, Long id, String nome, TipoTransacao tipo) {
         Categoria categoriaExistente = buscarOuLancar(usuarioId, id);
+        if (categoriaExistente.getTipo() != tipo && repositorioTransacao.existePorCategoria(id)) {
+            throw new TipoDaCategoriaEmUsoException();
+        }
+
         if (!categoriaExistente.getNome().equalsIgnoreCase(nome) || categoriaExistente.getTipo() != tipo) {
             validarNaoDuplicada(usuarioId, nome, tipo);
         }

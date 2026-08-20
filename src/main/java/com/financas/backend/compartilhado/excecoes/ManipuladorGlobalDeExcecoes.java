@@ -2,6 +2,8 @@ package com.financas.backend.compartilhado.excecoes;
 
 import com.financas.backend.financas.dominio.excecoes.CategoriaDuplicadaException;
 import com.financas.backend.financas.dominio.excecoes.CategoriaEmUsoException;
+import com.financas.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoException;
+import com.financas.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.financas.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.financas.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.financas.backend.usuarios.dominio.excecoes.EmailJaCadastradoException;
@@ -24,7 +26,12 @@ public class ManipuladorGlobalDeExcecoes {
         return construirResposta(HttpStatus.NOT_FOUND, excecao.getMessage());
     }
 
-    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, EmailJaCadastradoException.class})
+    @ExceptionHandler(TipoIncompativelComCategoriaException.class)
+    public ResponseEntity<ErroResposta> tratarTipoIncompativel(TipoIncompativelComCategoriaException excecao) {
+        return construirResposta(HttpStatus.BAD_REQUEST, excecao.getMessage());
+    }
+
+    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, EmailJaCadastradoException.class, TipoDaCategoriaEmUsoException.class})
     public ResponseEntity<ErroResposta> tratarConflito(RuntimeException excecao) {
         return construirResposta(HttpStatus.CONFLICT, excecao.getMessage());
     }
