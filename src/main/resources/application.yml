@@ -29,6 +29,18 @@ spring:
     user: ${DB_MIGRACAO_USERNAME:financas_migracao}
     password: ${DB_MIGRACAO_PASSWORD}
 
+logging:
+  file:
+    # Em console, o log e a trilha somem junto com a janela — e "quem entrou na semana
+    # passada" é exatamente a pergunta que a trilha existe para responder. Rotação e
+    # retenção ficam nos padrões do Spring Boot: 10MB por arquivo, 7 arquivos de histórico.
+    name: logs/backend.log
+  level:
+    com.financas.backend: INFO
+    # Nível próprio, de propósito: calar a depuração da aplicação não pode, junto,
+    # apagar o registro de quem entrou.
+    AUDITORIA: INFO
+
 financas:
   jwt:
     secret: ${JWT_SECRET}

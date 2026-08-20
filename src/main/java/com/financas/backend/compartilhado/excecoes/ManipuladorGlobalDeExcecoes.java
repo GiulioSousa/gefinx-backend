@@ -8,6 +8,9 @@ import com.financas.backend.financas.dominio.excecoes.RecursoNaoEncontradoExcept
 import com.financas.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.financas.backend.usuarios.dominio.excecoes.EmailJaCadastradoException;
 import com.financas.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +23,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ManipuladorGlobalDeExcecoes {
+
+    private static final Logger log = LoggerFactory.getLogger(ManipuladorGlobalDeExcecoes.class);
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroResposta> tratarRecursoNaoEncontrado(RecursoNaoEncontradoException excecao) {
@@ -58,8 +63,18 @@ public class ManipuladorGlobalDeExcecoes {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
     }
 
+    /**
+     * Último recurso: o que chega aqui não foi previsto por nenhum manipulador acima.
+     *
+     * <p>Registrar a exceção inteira é o ponto deste método. A resposta é, e continua sendo,
+     * genérica — detalhe de exceção em corpo de resposta vira mapa do sistema para quem
+     * sondar a API. Mas engolir a exceção sem registrá-la em lugar nenhum torna todo `500`
+     * indistinguível de qualquer outro, e foi o que atrapalhou o diagnóstico duas vezes
+     * durante a auditoria: sem rastro, um `500` não diz sequer em que camada nasceu.
+     */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErroResposta> tratarErroInesperado(Exception excecao) {
+    public ResponseEntity<ErroResposta> tratarErroInesperado(Exception excecao, HttpServletRequest requisicao) {
+        log.error("Erro inesperado em {} {}", requisicao.getMethod(), requisicao.getRequestURI(), excecao);
         return construirResposta(HttpStatus.INTERNAL_SERVER_ERROR, "Ocorreu um erro inesperado");
     }
 

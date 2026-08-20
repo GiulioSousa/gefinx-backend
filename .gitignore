@@ -35,3 +35,6 @@ build/
 ### Configuração local e segredos ###
 src/main/resources/application-local.yml
 .env
+
+### Log e trilha de auditoria ###
+logs/

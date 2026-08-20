@@ -1,5 +1,6 @@
 package com.financas.backend.compartilhado.seguranca;
 
+import com.financas.backend.compartilhado.auditoria.Auditoria;
 import com.financas.backend.compartilhado.excecoes.ErroResposta;
 import com.financas.backend.compartilhado.seguranca.PropriedadesLimiteDeRequisicoes.Politica;
 import jakarta.servlet.FilterChain;
@@ -74,6 +75,12 @@ public class FiltroLimiteDeRequisicoes extends OncePerRequestFilter {
 
         var resultado = limitador.verificar(rota.chavePara(request), rota.politica());
         if (!resultado.permitido()) {
+            // A origem só existe aqui: a camada de aplicação não enxerga a requisição, e
+            // arrastá-la até lá para poder registrar o IP custaria mais do que a trilha vale.
+            Auditoria.LOG.warn(
+                "limite por origem excedido rota={} origem={} liberaEm={}s",
+                rota.nome(), request.getRemoteAddr(), resultado.segundosParaLiberar()
+            );
             responderLimiteExcedido(response, resultado.segundosParaLiberar());
             return;
         }
