@@ -12,14 +12,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 @RestControllerAdvice
 public class ManipuladorGlobalDeExcecoes {
@@ -61,6 +68,68 @@ public class ManipuladorGlobalDeExcecoes {
 
         ErroResposta corpo = new ErroResposta(HttpStatus.BAD_REQUEST.value(), "Dados inválidos", erros);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
+    }
+
+    /**
+     * Rota que não existe é erro de quem chamou, não falha do servidor.
+     *
+     * <p>Sem este manipulador, qualquer caminho fora do mapa caía no tratamento genérico
+     * e voltava como `500` — inclusive a própria rota certa escrita com barra no fim, que
+     * o Spring 6 deixou de casar por padrão. Um cliente que recebe `500` ao errar o
+     * caminho conclui que a API está quebrada.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErroResposta> tratarRotaInexistente(HttpServletRequest requisicao) {
+        log.debug("Rota inexistente: {} {}", requisicao.getMethod(), requisicao.getRequestURI());
+        return construirResposta(HttpStatus.NOT_FOUND, "Recurso não encontrado");
+    }
+
+    /**
+     * Corpo que o conversor não consegue ler: JSON truncado, campo com tipo incompatível,
+     * bytes que não formam UTF-8 válido.
+     *
+     * <p>A mensagem devolvida é fixa de propósito. A da exceção traz posição no fluxo e
+     * nomes de classes do domínio — detalhe que ajuda quem depura e desenha o sistema para
+     * quem sonda. Ele fica no log, que é onde tem leitor legítimo.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErroResposta> tratarCorpoIlegivel(HttpMessageNotReadableException excecao) {
+        log.debug("Corpo da requisição ilegível: {}", excecao.getMessage());
+        return construirResposta(HttpStatus.BAD_REQUEST, "Corpo da requisição inválido");
+    }
+
+    /**
+     * Verbo que a rota não aceita. O cabeçalho {@code Allow} acompanha a resposta porque
+     * a RFC 9110 o exige em `405`, e sem ele o cliente não descobre o que fazer.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErroResposta> tratarMetodoNaoSuportado(HttpRequestMethodNotSupportedException excecao) {
+        var resposta = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+
+        Set<HttpMethod> metodosAceitos = excecao.getSupportedHttpMethods();
+        if (metodosAceitos != null && !metodosAceitos.isEmpty()) {
+            resposta.allow(metodosAceitos.toArray(new HttpMethod[0]));
+        }
+
+        return resposta.body(new ErroResposta(
+            HttpStatus.METHOD_NOT_ALLOWED.value(),
+            "Método não permitido para este recurso"
+        ));
+    }
+
+    /** Corpo enviado num formato que a API não recebe — tipicamente sem `Content-Type` de JSON. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ErroResposta> tratarTipoNaoSuportado(HttpMediaTypeNotSupportedException excecao) {
+        return construirResposta(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Formato de conteúdo não suportado");
+    }
+
+    /**
+     * Trecho do caminho que não converte para o tipo esperado, como {@code /transacoes/abc}
+     * onde se espera um id numérico.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErroResposta> tratarParametroComTipoErrado(MethodArgumentTypeMismatchException excecao) {
+        return construirResposta(HttpStatus.BAD_REQUEST, "Parâmetro inválido: " + excecao.getName());
     }
 
     /**
