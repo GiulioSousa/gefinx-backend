@@ -98,6 +98,19 @@ class AutenticacaoServiceTest {
         verify(controle).liberar(EMAIL);
     }
 
+
+    @Test
+    void encontraAContaMesmoQuandoOEmailChegaComOutraCaixa() {
+        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+        when(codificador.matches("correta", "hash-real")).thenReturn(true);
+
+        // O banco guarda a forma canônica; sem normalizar aqui, quem digitasse com
+        // maiúscula não encontraria a própria conta.
+        assertThat(servico.autenticar("  ALVO@Exemplo.COM ", "correta").getEmail()).isEqualTo(EMAIL);
+
+        verify(controle).liberar(EMAIL);
+    }
     private Usuario usuario() {
         return new Usuario(1L, "Alvo", EMAIL, "hash-real", LocalDateTime.now());
     }

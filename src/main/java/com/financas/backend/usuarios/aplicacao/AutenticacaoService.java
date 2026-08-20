@@ -1,6 +1,7 @@
 package com.financas.backend.usuarios.aplicacao;
 
 import com.financas.backend.usuarios.dominio.ControleDeTentativasDeLogin;
+import com.financas.backend.usuarios.dominio.NormalizadorDeEmail;
 import com.financas.backend.usuarios.dominio.RepositorioUsuario;
 import com.financas.backend.usuarios.dominio.Usuario;
 import com.financas.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
@@ -54,12 +55,14 @@ public class AutenticacaoService {
      * conta existe, reabrindo por outro caminho a enumeração fechada na Etapa 5.
      */
     public Usuario autenticar(String email, String senha) {
-        var tentativa = controleDeTentativas.registrar(email);
+        String emailNormalizado = NormalizadorDeEmail.normalizar(email);
+
+        var tentativa = controleDeTentativas.registrar(emailNormalizado);
         if (tentativa.bloqueado()) {
             throw new TentativasExcedidasException(tentativa.segundosParaLiberar());
         }
 
-        Optional<Usuario> usuarioEncontrado = repositorioUsuario.buscarPorEmail(email);
+        Optional<Usuario> usuarioEncontrado = repositorioUsuario.buscarPorEmail(emailNormalizado);
 
         if (usuarioEncontrado.isEmpty()) {
             codificadorDeSenha.matches(senha, hashDescartavel);
@@ -71,7 +74,7 @@ public class AutenticacaoService {
             throw new CredenciaisInvalidasException();
         }
 
-        controleDeTentativas.liberar(email);
+        controleDeTentativas.liberar(emailNormalizado);
         return usuario;
     }
 }

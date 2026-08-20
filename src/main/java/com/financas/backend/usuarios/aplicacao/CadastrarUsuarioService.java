@@ -1,5 +1,6 @@
 package com.financas.backend.usuarios.aplicacao;
 
+import com.financas.backend.usuarios.dominio.NormalizadorDeEmail;
 import com.financas.backend.usuarios.dominio.RepositorioUsuario;
 import com.financas.backend.usuarios.dominio.Usuario;
 import com.financas.backend.usuarios.dominio.excecoes.EmailJaCadastradoException;
@@ -18,12 +19,14 @@ public class CadastrarUsuarioService {
     }
 
     public Usuario cadastrar(String nome, String email, String senha) {
-        if (repositorioUsuario.existePorEmail(email)) {
-            throw new EmailJaCadastradoException(email);
+        String emailNormalizado = NormalizadorDeEmail.normalizar(email);
+
+        if (repositorioUsuario.existePorEmail(emailNormalizado)) {
+            throw new EmailJaCadastradoException(emailNormalizado);
         }
 
         String senhaHash = codificadorDeSenha.encode(senha);
-        Usuario usuario = Usuario.novo(nome, email, senhaHash);
+        Usuario usuario = Usuario.novo(nome, emailNormalizado, senhaHash);
         return repositorioUsuario.salvar(usuario);
     }
 }

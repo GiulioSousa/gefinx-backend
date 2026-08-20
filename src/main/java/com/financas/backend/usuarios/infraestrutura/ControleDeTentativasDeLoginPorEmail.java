@@ -3,9 +3,8 @@ package com.financas.backend.usuarios.infraestrutura;
 import com.financas.backend.compartilhado.seguranca.LimitadorDeRequisicoes;
 import com.financas.backend.compartilhado.seguranca.PropriedadesLimiteDeRequisicoes;
 import com.financas.backend.usuarios.dominio.ControleDeTentativasDeLogin;
+import com.financas.backend.usuarios.dominio.NormalizadorDeEmail;
 import org.springframework.stereotype.Component;
-
-import java.util.Locale;
 
 /**
  * Implementa o controle por conta sobre o mesmo token bucket já usado pelo limite
@@ -39,14 +38,14 @@ public class ControleDeTentativasDeLoginPorEmail implements ControleDeTentativas
     }
 
     /**
-     * A normalização não é cosmética: sem ela, {@code Alvo@exemplo.com} e
-     * {@code alvo@exemplo.com} cairiam em baldes distintos e bastaria alternar a caixa
-     * para tentar à vontade. É a mesma armadilha da chave derivada do caminho cru que
-     * abria o desvio corrigido na Etapa 5 — entrada controlada por quem ataca não pode
-     * escolher o balde.
+     * Delega a normalização ao {@link NormalizadorDeEmail}, o mesmo ponto que decide qual
+     * conta o cadastro e o login enxergam. Manter aqui uma cópia da regra a faria divergir
+     * com o tempo, e bastaria alternar a caixa das letras para ganhar um balde novo a cada
+     * tentativa — a mesma armadilha da chave derivada do caminho cru que abria o desvio
+     * corrigido na Etapa 5: entrada controlada por quem ataca não pode escolher o balde.
      */
     private String chavePara(String email) {
-        String normalizado = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
-        return PREFIXO_DA_CHAVE + normalizado;
+        String normalizado = NormalizadorDeEmail.normalizar(email);
+        return PREFIXO_DA_CHAVE + (normalizado == null ? "" : normalizado);
     }
 }
