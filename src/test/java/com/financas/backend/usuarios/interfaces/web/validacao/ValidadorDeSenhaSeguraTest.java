@@ -82,6 +82,47 @@ class ValidadorDeSenhaSeguraTest {
             .containsExactly("A senha é obrigatória");
     }
 
+
+    @Test
+    void aceitaNomeExatamenteNoLimiteDaColuna() {
+        assertThat(mensagensParaNome("a".repeat(120))).isEmpty();
+    }
+
+    @Test
+    void recusaNomeUmCaractereAcimaDoLimite() {
+        assertThat(mensagensParaNome("a".repeat(121)))
+            .contains("O nome deve ter no máximo 120 caracteres");
+    }
+
+    /**
+     * O teto do e-mail é 120, abaixo dos 180 da coluna: limite de produto, não espelho do
+     * schema. O caminho que estourava a coluna era o domínio longo — a parte local já é
+     * limitada a 64 pelo próprio {@code @Email}, por RFC.
+     */
+    @Test
+    void recusaEmailAcimaDoTetoDeProduto() {
+        String dominioLongo = "a".repeat(60) + "." + "a".repeat(60) + ".com";
+
+        assertThat(mensagensParaEmail("x@" + dominioLongo))
+            .contains("O e-mail deve ter no máximo 120 caracteres");
+    }
+
+    @Test
+    void aceitaEmailCorporativoLongoDentroDoTeto() {
+        assertThat(mensagensParaEmail("giulivan.cardoso.sousa@financeiro.departamento.empresa.com.br")).isEmpty();
+    }
+
+    private java.util.List<String> mensagensParaNome(String nome) {
+        return validador.validate(new RequisicaoRegistro(nome, "fulano@exemplo.com", "uma frase de senha")).stream()
+            .map(ConstraintViolation::getMessage)
+            .toList();
+    }
+
+    private java.util.List<String> mensagensParaEmail(String email) {
+        return validador.validate(new RequisicaoRegistro("Fulano", email, "uma frase de senha")).stream()
+            .map(ConstraintViolation::getMessage)
+            .toList();
+    }
     private List<String> mensagensPara(String senha) {
         return validador.validate(new RequisicaoRegistro("Fulano", "fulano@exemplo.com", senha)).stream()
             .map(ConstraintViolation::getMessage)
