@@ -9,10 +9,10 @@ spring:
     # Em produção, defina SPRING_PROFILES_ACTIVE e as variáveis de ambiente abaixo.
     default: local
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5433/financas_db}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/gefinx_db}
     # Usuário de execução: só DML nas três tabelas. Quem cria e altera o schema é o
     # usuário de migration abaixo — ver backend/db/criar-roles.sql.
-    username: ${DB_USERNAME:financas_app}
+    username: ${DB_USERNAME:gefinx_app}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
@@ -26,7 +26,7 @@ spring:
     locations: classpath:db/migration
     # Credencial própria, com DDL, usada só durante a subida. O Spring Boot deriva a
     # conexão do datasource acima, trocando apenas usuário e senha.
-    user: ${DB_MIGRACAO_USERNAME:financas_migracao}
+    user: ${DB_MIGRACAO_USERNAME:gefinx_migracao}
     password: ${DB_MIGRACAO_PASSWORD}
 
 logging:

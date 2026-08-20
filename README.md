@@ -14,7 +14,7 @@ domínio (DDD).
 1. Crie o banco de dados:
 
    ```bash
-   psql -U postgres -p 5433 -c "CREATE DATABASE financas_db WITH ENCODING 'UTF8';"
+   psql -U postgres -p 5433 -c "CREATE DATABASE gefinx_db WITH ENCODING 'UTF8';"
    ```
 
 2. Copie o modelo de configuração e preencha com os valores reais:
