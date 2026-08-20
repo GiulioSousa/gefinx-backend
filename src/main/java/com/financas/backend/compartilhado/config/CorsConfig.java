@@ -8,6 +8,16 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/**
+ * Libera o frontend de desenvolvimento, e só ele.
+ *
+ * <p>Sem {@code allowCredentials}: a autenticação desta API viaja no cabeçalho
+ * {@code Authorization}, que é um cabeçalho comum e não uma credencial no sentido do CORS.
+ * Ligar a bandeira faria o navegador anexar cookies e cabeçalhos de autenticação HTTP às
+ * requisições entre origens, e obrigaria o servidor a ecoar a origem de volta — permissão
+ * que nada aqui usa. Se um dia a sessão passar a viver em cookie {@code httpOnly}, item que
+ * está na fila, ela volta, e aí valendo alguma coisa.
+ */
 @Configuration
 public class CorsConfig {
 
@@ -17,7 +27,6 @@ public class CorsConfig {
         configuracao.setAllowedOrigins(List.of("http://localhost:5173"));
         configuracao.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuracao.setAllowedHeaders(List.of("*"));
-        configuracao.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource origem = new UrlBasedCorsConfigurationSource();
         origem.registerCorsConfiguration("/**", configuracao);
