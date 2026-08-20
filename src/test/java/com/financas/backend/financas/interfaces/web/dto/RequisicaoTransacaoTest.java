@@ -60,6 +60,26 @@ class RequisicaoTransacaoTest {
         assertThat(mensagensPara(BigDecimal.ZERO)).contains("O valor deve ser positivo");
     }
 
+
+    @Test
+    void aceitaDescricaoExatamenteNoLimiteDaColuna() {
+        assertThat(validarDescricao("a".repeat(200))).isEmpty();
+    }
+
+    @Test
+    void recusaDescricaoUmCaractereAcimaDoLimite() {
+        assertThat(validarDescricao("a".repeat(201)))
+            .as("o excesso chegava ao banco e voltava como erro interno")
+            .contains("A descrição deve ter no máximo 200 caracteres");
+    }
+
+    private java.util.List<String> validarDescricao(String descricao) {
+        return validador.validate(new RequisicaoTransacao(
+                descricao, new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, LocalDate.of(2026, 8, 20)
+            )).stream()
+            .map(jakarta.validation.ConstraintViolation::getMessage)
+            .toList();
+    }
     private java.util.List<String> mensagensPara(BigDecimal valor) {
         return validar(valor).stream()
             .map(jakarta.validation.ConstraintViolation::getMessage)
