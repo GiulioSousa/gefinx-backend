@@ -1,11 +1,21 @@
 ## Modelo de configuração local.
 ## Copie este arquivo para application-local.yml e preencha com os valores reais.
 ## application-local.yml é ignorado pelo Git; este modelo é versionado.
+##
+## ANTES da primeira subida, prepare o banco:
+##   psql -h localhost -p 5433 -U postgres -d financas_db -f ../../../db/criar-roles.sql
+## O script cria as duas roles (substitua os placeholders de senha nele) e transfere a
+## posse dos objetos. Sem isso a aplicação não sobe: as credenciais abaixo não existem.
 
 spring:
   datasource:
-    # Senha do usuário do PostgreSQL definido em spring.datasource.username
-    password: SUA_SENHA_DO_POSTGRES
+    # Senha de financas_app — a role de execução, restrita a DML nas três tabelas.
+    password: SENHA_DA_APLICACAO
+  flyway:
+    # Senha de financas_migracao — a role dona do schema, usada só durante a subida.
+    # Separá-las é o ponto: comprometer a aplicação em execução não dá poder de alterar
+    # nem destruir o schema.
+    password: SENHA_DA_MIGRACAO
 
 financas:
   jwt:
