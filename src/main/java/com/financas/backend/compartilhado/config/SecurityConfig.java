@@ -2,8 +2,8 @@ package com.financas.backend.compartilhado.config;
 
 import com.financas.backend.compartilhado.seguranca.FiltroAutenticacaoJwt;
 import com.financas.backend.compartilhado.seguranca.FiltroLimiteDeRequisicoes;
+import com.financas.backend.compartilhado.seguranca.PontoDeEntradaNaoAutenticado;
 import com.financas.backend.compartilhado.seguranca.PropriedadesLimiteDeRequisicoes;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,15 +26,18 @@ public class SecurityConfig {
     private final FiltroAutenticacaoJwt filtroAutenticacaoJwt;
     private final FiltroLimiteDeRequisicoes filtroLimiteDeRequisicoes;
     private final CorsConfigurationSource origensPermitidas;
+    private final PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado;
 
     public SecurityConfig(
         FiltroAutenticacaoJwt filtroAutenticacaoJwt,
         FiltroLimiteDeRequisicoes filtroLimiteDeRequisicoes,
-        CorsConfigurationSource origensPermitidas
+        CorsConfigurationSource origensPermitidas,
+        PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado
     ) {
         this.filtroAutenticacaoJwt = filtroAutenticacaoJwt;
         this.filtroLimiteDeRequisicoes = filtroLimiteDeRequisicoes;
         this.origensPermitidas = origensPermitidas;
+        this.pontoDeEntradaNaoAutenticado = pontoDeEntradaNaoAutenticado;
     }
 
     @Bean
@@ -43,10 +46,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(origensPermitidas))
             .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(tratamento -> tratamento.authenticationEntryPoint(
-                (request, response, excecaoDeAutenticacao) ->
-                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Não autenticado")
-            ))
+            .exceptionHandling(tratamento -> tratamento.authenticationEntryPoint(pontoDeEntradaNaoAutenticado))
             .authorizeHttpRequests(autorizacao -> autorizacao
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()

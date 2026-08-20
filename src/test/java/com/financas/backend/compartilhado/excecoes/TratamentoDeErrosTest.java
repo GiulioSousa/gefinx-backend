@@ -125,6 +125,40 @@ class TratamentoDeErrosTest {
     }
 
     @Test
+    void devolveOFormatoUniformeTambemNoNaoAutenticado() {
+        var resposta = enviar("GET", "/api/saldo", null, null);
+
+        assertThat(resposta.statusCode()).isEqualTo(401);
+        // Antes esta resposta saía com Content-Length: 0 — a única da API fora do formato,
+        // e justamente a que o frontend lê para decidir encerrar a sessão.
+        assertThat(resposta.body()).isNotEmpty();
+        assertThat(resposta.body())
+            .contains("\"status\":401")
+            .contains("\"mensagem\":\"Não autenticado\"")
+            .contains("\"momento\"")
+            .contains("\"erros\"");
+        assertThat(resposta.headers().firstValue("Content-Type")).hasValueSatisfying(
+            tipo -> assertThat(tipo).contains("application/json")
+        );
+    }
+
+    @Test
+    void naoRevelaSeOTokenEstaAusenteOuInvalido() {
+        var semToken = enviar("GET", "/api/saldo", null, null);
+        var comTokenInvalido = enviarComToken("GET", "/api/saldo", "token.claramente.invalido");
+
+        assertThat(comTokenInvalido.statusCode()).isEqualTo(401);
+        assertThat(semOMomento(comTokenInvalido.body()))
+            .as("a diferença não muda o que o cliente faz, e enunciá-la conta a quem sonda em que estado está o token")
+            .isEqualTo(semOMomento(semToken.body()));
+    }
+
+    /** O instante é o único campo que muda entre duas respostas de erro iguais. */
+    private String semOMomento(String corpo) {
+        return corpo.replaceAll("\"momento\":\"[^\"]+\",", "");
+    }
+
+    @Test
     void devolveDadosInvalidosQuandoOIdNoCaminhoNaoENumero() {
         String token = registrarEObterToken();
 
