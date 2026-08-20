@@ -29,8 +29,18 @@
 	<properties>
 		<java.version>25</java.version>
 		<jjwt.version>0.13.0</jjwt.version>
+		<bucket4j.version>8.19.0</bucket4j.version>
 	</properties>
 	<dependencies>
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-core</artifactId>
+			<version>${bucket4j.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-api</artifactId>

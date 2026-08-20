@@ -27,3 +27,11 @@ financas:
   jwt:
     secret: ${JWT_SECRET}
     expiracao-minutos: ${JWT_EXPIRACAO_MINUTOS:1440}
+  limite-requisicoes:
+    # Protege as rotas de autenticação contra força bruta, por endereço de origem.
+    login:
+      tentativas: 5
+      janela: 1m
+    registro:
+      tentativas: 3
+      janela: 10m

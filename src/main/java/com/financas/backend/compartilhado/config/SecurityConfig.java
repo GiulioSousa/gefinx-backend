@@ -1,7 +1,10 @@
 package com.financas.backend.compartilhado.config;
 
 import com.financas.backend.compartilhado.seguranca.FiltroAutenticacaoJwt;
+import com.financas.backend.compartilhado.seguranca.FiltroLimiteDeRequisicoes;
+import com.financas.backend.compartilhado.seguranca.PropriedadesLimiteDeRequisicoes;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,13 +20,20 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableConfigurationProperties(PropriedadesLimiteDeRequisicoes.class)
 public class SecurityConfig {
 
     private final FiltroAutenticacaoJwt filtroAutenticacaoJwt;
+    private final FiltroLimiteDeRequisicoes filtroLimiteDeRequisicoes;
     private final CorsConfigurationSource origensPermitidas;
 
-    public SecurityConfig(FiltroAutenticacaoJwt filtroAutenticacaoJwt, CorsConfigurationSource origensPermitidas) {
+    public SecurityConfig(
+        FiltroAutenticacaoJwt filtroAutenticacaoJwt,
+        FiltroLimiteDeRequisicoes filtroLimiteDeRequisicoes,
+        CorsConfigurationSource origensPermitidas
+    ) {
         this.filtroAutenticacaoJwt = filtroAutenticacaoJwt;
+        this.filtroLimiteDeRequisicoes = filtroLimiteDeRequisicoes;
         this.origensPermitidas = origensPermitidas;
     }
 
@@ -42,7 +52,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(filtroAutenticacaoJwt, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(filtroAutenticacaoJwt, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(filtroLimiteDeRequisicoes, FiltroAutenticacaoJwt.class);
 
         return http.build();
     }

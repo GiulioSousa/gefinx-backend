@@ -40,6 +40,27 @@ API REST do gerenciador financeiro pessoal, em Spring Boot 4 com arquitetura ori
 Em produção, em vez de `application-local.yml`, defina `SPRING_PROFILES_ACTIVE` e as variáveis
 `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET` e `JWT_EXPIRACAO_MINUTOS`.
 
+### Limite de requisições
+
+As rotas de autenticação são protegidas contra força bruta por endereço de origem, com token
+bucket (Bucket4j). Ajuste em `application.yml`:
+
+```yaml
+financas:
+  limite-requisicoes:
+    login:    { tentativas: 5, janela: 1m }
+    registro: { tentativas: 3, janela: 10m }
+```
+
+Ao exceder, a API responde `429` com o cabeçalho `Retry-After`.
+
+Duas limitações a considerar antes de publicar: os contadores vivem **em memória**, então cada
+instância aplicaria o limite isoladamente — ao escalar horizontalmente, migre para um armazenamento
+compartilhado (o Bucket4j tem adaptadores para Redis e Hazelcast). E o endereço de origem vem de
+`getRemoteAddr()`; atrás de um proxy reverso, configure `server.forward-headers-strategy` para que
+o endereço real seja resolvido pelo contêiner, em vez de confiar em cabeçalhos que o cliente pode
+forjar.
+
 ## Arquitetura
 
 Organização por **bounded context**, cada um em quatro camadas:
