@@ -1,5 +1,6 @@
 package com.financas.backend.usuarios.aplicacao;
 
+import com.financas.backend.compartilhado.auditoria.Auditoria;
 import com.financas.backend.usuarios.dominio.ControleDeSessoes;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,5 +22,6 @@ public class EncerrarSessoesService {
     @Transactional
     public void executar(Long usuarioId) {
         controleDeSessoes.encerrarTodas(usuarioId);
+        Auditoria.LOG.info("sessoes encerradas usuario={}", usuarioId);
     }
 }

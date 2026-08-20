@@ -1,5 +1,6 @@
 package com.financas.backend.usuarios.aplicacao;
 
+import com.financas.backend.compartilhado.auditoria.Auditoria;
 import com.financas.backend.usuarios.dominio.ControleDeTentativasDeLogin;
 import com.financas.backend.usuarios.dominio.NormalizadorDeEmail;
 import com.financas.backend.usuarios.dominio.RepositorioUsuario;
@@ -59,6 +60,10 @@ public class AutenticacaoService {
 
         var tentativa = controleDeTentativas.registrar(emailNormalizado);
         if (tentativa.bloqueado()) {
+            Auditoria.LOG.warn(
+                "login bloqueado email={} liberaEm={}s",
+                Auditoria.seguro(emailNormalizado), tentativa.segundosParaLiberar()
+            );
             throw new TentativasExcedidasException(tentativa.segundosParaLiberar());
         }
 
@@ -66,15 +71,21 @@ public class AutenticacaoService {
 
         if (usuarioEncontrado.isEmpty()) {
             codificadorDeSenha.matches(senha, hashDescartavel);
+            Auditoria.LOG.info("login recusado email={} motivo=conta-inexistente", Auditoria.seguro(emailNormalizado));
             throw new CredenciaisInvalidasException();
         }
 
         Usuario usuario = usuarioEncontrado.get();
         if (!codificadorDeSenha.matches(senha, usuario.getSenhaHash())) {
+            Auditoria.LOG.info(
+                "login recusado usuario={} email={} motivo=senha-incorreta",
+                usuario.getId(), Auditoria.seguro(emailNormalizado)
+            );
             throw new CredenciaisInvalidasException();
         }
 
         controleDeTentativas.liberar(emailNormalizado);
+        Auditoria.LOG.info("login aceito usuario={} email={}", usuario.getId(), Auditoria.seguro(emailNormalizado));
         return usuario;
     }
 }
