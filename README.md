@@ -1,6 +1,7 @@
-# Gerenciador Financeiro — Backend
+# GeFinX — Backend
 
-API REST do gerenciador financeiro pessoal, em Spring Boot 4 com arquitetura orientada a domínio (DDD).
+API REST do GeFinX, gerenciador financeiro pessoal em Spring Boot 4 com arquitetura orientada a
+domínio (DDD).
 
 ## Requisitos
 

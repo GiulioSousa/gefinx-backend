@@ -9,10 +9,10 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.financas</groupId>
-	<artifactId>backend</artifactId>
+	<artifactId>gefinx-backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>backend</name>
-	<description>Gerenciador Financeiro Pessoal - Backend</description>
+	<name>gefinx-backend</name>
+	<description>GeFinX - Backend</description>
 	<url/>
 	<licenses>
 		<license/>

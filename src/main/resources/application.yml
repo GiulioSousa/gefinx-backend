@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: backend
+    name: gefinx-backend
   profiles:
     # Sem perfil explícito, carrega application-local.yml (ignorado pelo Git).
     # Em produção, defina SPRING_PROFILES_ACTIVE e as variáveis de ambiente abaixo.
