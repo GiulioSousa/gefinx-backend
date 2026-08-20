@@ -1,0 +1,14 @@
+## Modelo de configuração local.
+## Copie este arquivo para application-local.yml e preencha com os valores reais.
+## application-local.yml é ignorado pelo Git; este modelo é versionado.
+
+spring:
+  datasource:
+    # Senha do usuário do PostgreSQL definido em spring.datasource.username
+    password: SUA_SENHA_DO_POSTGRES
+
+financas:
+  jwt:
+    # Chave Base64 de no mínimo 48 bytes (HS384). Gere com:
+    #   node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+    secret: SUA_CHAVE_BASE64
