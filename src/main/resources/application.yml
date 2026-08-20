@@ -32,6 +32,11 @@ financas:
     login:
       tentativas: 5
       janela: 1m
+    # Por conta alvo: o limite por IP acima não alcança ataque distribuído,
+    # em que cada origem chega com o balde intacto. Zera a cada login bem-sucedido.
+    login-por-conta:
+      tentativas: 10
+      janela: 15m
     registro:
       tentativas: 3
       janela: 10m

@@ -5,6 +5,8 @@ import com.financas.backend.financas.dominio.excecoes.CategoriaEmUsoException;
 import com.financas.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.financas.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.financas.backend.usuarios.dominio.excecoes.EmailJaCadastradoException;
+import com.financas.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,6 +32,13 @@ public class ManipuladorGlobalDeExcecoes {
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<ErroResposta> tratarCredenciaisInvalidas(CredenciaisInvalidasException excecao) {
         return construirResposta(HttpStatus.UNAUTHORIZED, excecao.getMessage());
+    }
+
+    @ExceptionHandler(TentativasExcedidasException.class)
+    public ResponseEntity<ErroResposta> tratarTentativasExcedidas(TentativasExcedidasException excecao) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+            .header(HttpHeaders.RETRY_AFTER, String.valueOf(excecao.getSegundosParaLiberar()))
+            .body(new ErroResposta(HttpStatus.TOO_MANY_REQUESTS.value(), excecao.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

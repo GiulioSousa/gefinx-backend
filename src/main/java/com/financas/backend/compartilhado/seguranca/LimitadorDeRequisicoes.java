@@ -41,6 +41,18 @@ public class LimitadorDeRequisicoes {
         return ResultadoLimite.bloqueado(Math.max(segundosDeEspera, 1));
     }
 
+    /**
+     * Descarta o balde da chave, devolvendo-lhe a cota cheia.
+     *
+     * <p>Serve ao limite por conta: as tentativas contam enquanto falham, e um login
+     * bem-sucedido as zera. Sem isso, quem usa o sistema com frequência acabaria
+     * barrado pelo próprio uso legítimo, e a trava puniria o dono da conta em vez de
+     * quem a ataca.
+     */
+    public void reiniciar(String chave) {
+        bucketsPorChave.invalidate(chave);
+    }
+
     private Bucket construirBucket(Politica politica) {
         Bandwidth limite = Bandwidth.builder()
             .capacity(politica.tentativas())

@@ -1,8 +1,10 @@
 package com.financas.backend.usuarios.aplicacao;
 
+import com.financas.backend.usuarios.dominio.ControleDeTentativasDeLogin;
 import com.financas.backend.usuarios.dominio.RepositorioUsuario;
 import com.financas.backend.usuarios.dominio.Usuario;
 import com.financas.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
+import com.financas.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +16,7 @@ public class AutenticacaoService {
 
     private final RepositorioUsuario repositorioUsuario;
     private final PasswordEncoder codificadorDeSenha;
+    private final ControleDeTentativasDeLogin controleDeTentativas;
 
     /**
      * Hash descartável, conferido quando o e-mail informado não existe.
@@ -29,13 +32,33 @@ public class AutenticacaoService {
      */
     private final String hashDescartavel;
 
-    public AutenticacaoService(RepositorioUsuario repositorioUsuario, PasswordEncoder codificadorDeSenha) {
+    public AutenticacaoService(
+        RepositorioUsuario repositorioUsuario,
+        PasswordEncoder codificadorDeSenha,
+        ControleDeTentativasDeLogin controleDeTentativas
+    ) {
         this.repositorioUsuario = repositorioUsuario;
         this.codificadorDeSenha = codificadorDeSenha;
+        this.controleDeTentativas = controleDeTentativas;
         this.hashDescartavel = codificadorDeSenha.encode(UUID.randomUUID().toString());
     }
 
+    /**
+     * A tentativa é contabilizada antes de qualquer consulta, e a cota só é devolvida
+     * ao fim de uma autenticação bem-sucedida. Ficar entre os dois pontos — falha de
+     * senha ou e-mail inexistente — consome a tentativa, que é justamente o que
+     * encarece a força bruta.
+     *
+     * <p>O bloqueio vale para qualquer e-mail submetido, exista ele ou não. Contabilizar
+     * apenas contas reais transformaria a resposta de bloqueio em confirmação de que a
+     * conta existe, reabrindo por outro caminho a enumeração fechada na Etapa 5.
+     */
     public Usuario autenticar(String email, String senha) {
+        var tentativa = controleDeTentativas.registrar(email);
+        if (tentativa.bloqueado()) {
+            throw new TentativasExcedidasException(tentativa.segundosParaLiberar());
+        }
+
         Optional<Usuario> usuarioEncontrado = repositorioUsuario.buscarPorEmail(email);
 
         if (usuarioEncontrado.isEmpty()) {
@@ -48,6 +71,7 @@ public class AutenticacaoService {
             throw new CredenciaisInvalidasException();
         }
 
+        controleDeTentativas.liberar(email);
         return usuario;
     }
 }
