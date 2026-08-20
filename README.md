@@ -67,7 +67,7 @@ forjar.
 Organização por **bounded context**, cada um em quatro camadas:
 
 ```
-com.financas.backend
+com.gefinx.backend
 ├── usuarios/        # identidade e autenticação
 ├── financas/        # categorias, transações e saldo
 └── compartilhado/   # segurança, CORS e tratamento global de erros

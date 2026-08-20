@@ -36,7 +36,7 @@ logging:
     # retenção ficam nos padrões do Spring Boot: 10MB por arquivo, 7 arquivos de histórico.
     name: logs/backend.log
   level:
-    com.financas.backend: INFO
+    com.gefinx.backend: INFO
     # Nível próprio, de propósito: calar a depuração da aplicação não pode, junto,
     # apagar o registro de quem entrou.
     AUDITORIA: INFO
