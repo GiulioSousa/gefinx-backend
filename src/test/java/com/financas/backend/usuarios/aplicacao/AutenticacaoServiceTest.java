@@ -112,6 +112,6 @@ class AutenticacaoServiceTest {
         verify(controle).liberar(EMAIL);
     }
     private Usuario usuario() {
-        return new Usuario(1L, "Alvo", EMAIL, "hash-real", LocalDateTime.now());
+        return new Usuario(1L, "Alvo", EMAIL, "hash-real", LocalDateTime.now(), LocalDateTime.now().minusDays(1));
     }
 }

@@ -30,15 +30,20 @@ public class UsuarioJpaEntity {
     @Column(name = "criado_em", nullable = false)
     private LocalDateTime criadoEm;
 
+    @Column(name = "sessoes_validas_apos", nullable = false)
+    private LocalDateTime sessoesValidasApos;
+
     protected UsuarioJpaEntity() {
     }
 
-    public UsuarioJpaEntity(Long id, String nome, String email, String senhaHash, LocalDateTime criadoEm) {
+    public UsuarioJpaEntity(Long id, String nome, String email, String senhaHash, LocalDateTime criadoEm,
+                            LocalDateTime sessoesValidasApos) {
         this.id = id;
         this.nome = nome;
         this.email = email;
         this.senhaHash = senhaHash;
         this.criadoEm = criadoEm;
+        this.sessoesValidasApos = sessoesValidasApos;
     }
 
     public static UsuarioJpaEntity apartirDoDominio(Usuario usuario) {
@@ -47,12 +52,13 @@ public class UsuarioJpaEntity {
             usuario.getNome(),
             usuario.getEmail(),
             usuario.getSenhaHash(),
-            usuario.getCriadoEm()
+            usuario.getCriadoEm(),
+            usuario.getSessoesValidasApos()
         );
     }
 
     public Usuario paraDominio() {
-        return new Usuario(id, nome, email, senhaHash, criadoEm);
+        return new Usuario(id, nome, email, senhaHash, criadoEm, sessoesValidasApos);
     }
 
     public Long getId() {
