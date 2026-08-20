@@ -29,8 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
     properties = {
         // O limite por origem não é o objeto deste teste, e barraria as requisições
         // antes que elas chegassem ao ponto que interessa.
-        "financas.limite-requisicoes.login.tentativas=100",
-        "financas.limite-requisicoes.registro.tentativas=100"
+        "gefinx.limite-requisicoes.login.tentativas=100",
+        "gefinx.limite-requisicoes.registro.tentativas=100"
     }
 )
 class TratamentoDeErrosTest {

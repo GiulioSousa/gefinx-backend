@@ -34,8 +34,8 @@ public class JwtService {
     private final long expiracaoMinutos;
 
     public JwtService(
-        @Value("${financas.jwt.secret}") String segredoBase64,
-        @Value("${financas.jwt.expiracao-minutos}") long expiracaoMinutos
+        @Value("${gefinx.jwt.secret}") String segredoBase64,
+        @Value("${gefinx.jwt.expiracao-minutos}") long expiracaoMinutos
     ) {
         this.chaveSecreta = Keys.hmacShaKeyFor(Decoders.BASE64.decode(segredoBase64));
         this.expiracaoMinutos = expiracaoMinutos;

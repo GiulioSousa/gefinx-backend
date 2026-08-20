@@ -23,10 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
-        "financas.limite-requisicoes.login.tentativas=3",
-        "financas.limite-requisicoes.login.janela=5m",
-        "financas.limite-requisicoes.registro.tentativas=3",
-        "financas.limite-requisicoes.registro.janela=5m"
+        "gefinx.limite-requisicoes.login.tentativas=3",
+        "gefinx.limite-requisicoes.login.janela=5m",
+        "gefinx.limite-requisicoes.registro.tentativas=3",
+        "gefinx.limite-requisicoes.registro.janela=5m"
     }
 )
 class LimiteDeRequisicoesTest {

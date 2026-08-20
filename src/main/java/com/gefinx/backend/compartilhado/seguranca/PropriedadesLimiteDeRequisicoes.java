@@ -10,7 +10,7 @@ import java.time.Duration;
  *                      não enxerga o corpo da requisição, onde o e-mail vem
  * @param registro     tentativas de cadastro por endereço de origem
  */
-@ConfigurationProperties(prefix = "financas.limite-requisicoes")
+@ConfigurationProperties(prefix = "gefinx.limite-requisicoes")
 public record PropriedadesLimiteDeRequisicoes(Politica login, Politica loginPorConta, Politica registro) {
 
     /**

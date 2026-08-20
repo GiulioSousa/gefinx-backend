@@ -17,7 +17,7 @@ spring:
     # nem destruir o schema.
     password: SENHA_DA_MIGRACAO
 
-financas:
+gefinx:
   jwt:
     # Chave Base64 de no mínimo 48 bytes (HS384). Gere com:
     #   node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"

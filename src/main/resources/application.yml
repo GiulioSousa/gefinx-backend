@@ -41,7 +41,7 @@ logging:
     # apagar o registro de quem entrou.
     AUDITORIA: INFO
 
-financas:
+gefinx:
   jwt:
     secret: ${JWT_SECRET}
     expiracao-minutos: ${JWT_EXPIRACAO_MINUTOS:1440}
