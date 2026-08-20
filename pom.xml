@@ -124,4 +124,50 @@
 		</plugins>
 	</build>
 
+	<!--
+		Procura CVEs conhecidos nas bibliotecas do backend.
+
+		Fica num perfil próprio, fora do build padrão, porque a checagem mantém uma cópia
+		local da base da NVD e leva minutos — tempo que não pode entrar no caminho de
+		`mvn test`, que é rodado a cada mudança.
+
+		A partir da versão 13 o plugin EXIGE chave de API da NVD: sem ela não tenta sequer
+		a primeira consulta e para com "Invalid API Key". A chave é gratuita e sai de
+		https://nvd.nist.gov/developers/request-an-api-key. Rode assim:
+
+			NVD_API_KEY=<a chave> mvn -P analise-de-dependencias verify -DskipTests
+
+		failBuildOnCVSS em 7 reprova a partir de "alta" na escala CVSS v3. O relatório sai
+		em target/, que já está fora do versionamento.
+	-->
+	<profiles>
+		<profile>
+			<id>analise-de-dependencias</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.owasp</groupId>
+						<artifactId>dependency-check-maven</artifactId>
+						<version>13.0.0</version>
+						<configuration>
+							<nvdApiKey>${env.NVD_API_KEY}</nvdApiKey>
+							<failBuildOnCVSS>7</failBuildOnCVSS>
+							<formats>
+								<format>HTML</format>
+								<format>JSON</format>
+							</formats>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>check</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 </project>
