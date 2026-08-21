@@ -5,8 +5,9 @@ classificadas por categoria e acompanha o saldo. Multiusuário — cada conta en
 próprios dados.
 
 Spring Boot 4 com arquitetura orientada a domínio (DDD), organizada por *bounded context*. A
-interface web vive em repositório próprio, `gefinx-frontend`, e essa separação é deliberada: o
-objetivo de médio prazo é extrair alguns contextos como serviços independentes.
+interface web vive em repositório próprio,
+[gefinx-frontend](https://github.com/GiulioSousa/gefinx-frontend), e essa separação é deliberada:
+o objetivo de médio prazo é extrair alguns contextos como serviços independentes.
 
 > Projeto pessoal, de estudo, sem uso comercial.
 
