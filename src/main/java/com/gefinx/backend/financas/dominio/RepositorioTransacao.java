@@ -16,5 +16,12 @@ public interface RepositorioTransacao {
 
     boolean existePorCategoria(Long categoriaId);
 
+    boolean existePorConta(Long contaId);
+
     BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo);
+
+    BigDecimal somarValorPorContaETipo(Long contaId, TipoTransacao tipo);
+
+    /** Saldo de cada conta do usuário numa consulta só, em vez de uma por conta. */
+    List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId);
 }

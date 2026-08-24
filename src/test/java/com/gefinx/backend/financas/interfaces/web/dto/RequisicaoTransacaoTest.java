@@ -75,7 +75,7 @@ class RequisicaoTransacaoTest {
 
     private java.util.List<String> validarDescricao(String descricao) {
         return validador.validate(new RequisicaoTransacao(
-                descricao, new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, LocalDate.of(2026, 8, 20)
+                descricao, new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, 2L, LocalDate.of(2026, 8, 20)
             )).stream()
             .map(jakarta.validation.ConstraintViolation::getMessage)
             .toList();
@@ -88,7 +88,23 @@ class RequisicaoTransacaoTest {
 
     private java.util.Set<jakarta.validation.ConstraintViolation<RequisicaoTransacao>> validar(BigDecimal valor) {
         return validador.validate(new RequisicaoTransacao(
-            "Compra qualquer", valor, TipoTransacao.DESPESA, 1L, LocalDate.of(2026, 8, 20)
+            "Compra qualquer", valor, TipoTransacao.DESPESA, 1L, 2L, LocalDate.of(2026, 8, 20)
         ));
+    }
+
+    /**
+     * Sem conta a transação não tem onde cair. Deixar o campo opcional obrigaria alguém a
+     * escolher uma conta pelo usuário, e escolher errado só apareceria no saldo por conta.
+     */
+    @Test
+    void exigeAConta() {
+        java.util.List<String> mensagens = validador.validate(new RequisicaoTransacao(
+                "Compra qualquer", new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, null,
+                LocalDate.of(2026, 8, 20)
+            )).stream()
+            .map(jakarta.validation.ConstraintViolation::getMessage)
+            .toList();
+
+        assertThat(mensagens).contains("A conta é obrigatória");
     }
 }

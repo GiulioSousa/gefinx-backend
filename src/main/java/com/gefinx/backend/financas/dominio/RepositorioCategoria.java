@@ -14,4 +14,6 @@ public interface RepositorioCategoria {
     void excluir(Long id);
 
     boolean existePorNomeTipoUsuario(String nome, TipoTransacao tipo, Long usuarioId);
+
+    Optional<Categoria> buscarPorNomeTipoUsuario(String nome, TipoTransacao tipo, Long usuarioId);
 }

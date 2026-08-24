@@ -1,6 +1,7 @@
 package com.gefinx.backend.financas.aplicacao;
 
 import com.gefinx.backend.financas.dominio.RepositorioCategoria;
+import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
@@ -18,10 +19,16 @@ public class TransacaoService {
 
     private final RepositorioTransacao repositorioTransacao;
     private final RepositorioCategoria repositorioCategoria;
+    private final RepositorioConta repositorioConta;
 
-    public TransacaoService(RepositorioTransacao repositorioTransacao, RepositorioCategoria repositorioCategoria) {
+    public TransacaoService(
+        RepositorioTransacao repositorioTransacao,
+        RepositorioCategoria repositorioCategoria,
+        RepositorioConta repositorioConta
+    ) {
         this.repositorioTransacao = repositorioTransacao;
         this.repositorioCategoria = repositorioCategoria;
+        this.repositorioConta = repositorioConta;
     }
 
     public List<Transacao> listar(Long usuarioId) {
@@ -34,10 +41,12 @@ public class TransacaoService {
         BigDecimal valor,
         TipoTransacao tipo,
         Long categoriaId,
+        Long contaId,
         LocalDate dataTransacao
     ) {
         validarCategoria(usuarioId, categoriaId, tipo);
-        Transacao transacao = Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, usuarioId);
+        validarConta(usuarioId, contaId);
+        Transacao transacao = Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId);
         return repositorioTransacao.salvar(transacao);
     }
 
@@ -48,12 +57,15 @@ public class TransacaoService {
         BigDecimal valor,
         TipoTransacao tipo,
         Long categoriaId,
+        Long contaId,
         LocalDate dataTransacao
     ) {
         Transacao transacaoExistente = buscarOuLancar(usuarioId, id);
         validarCategoria(usuarioId, categoriaId, tipo);
+        validarConta(usuarioId, contaId);
         Transacao transacaoAtualizada = new Transacao(
-            id, descricao, valor, tipo, dataTransacao, categoriaId, usuarioId, transacaoExistente.getCriadoEm()
+            id, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId,
+            transacaoExistente.getCriadoEm()
         );
         return repositorioTransacao.salvar(transacaoAtualizada);
     }
@@ -81,5 +93,16 @@ public class TransacaoService {
         if (categoria.getTipo() != tipo) {
             throw new TipoIncompativelComCategoriaException(tipo, categoria.getNome(), categoria.getTipo());
         }
+    }
+
+    /**
+     * Busca pela dupla (id, usuário) e não só pelo id: uma conta de outro dono devolve
+     * "não encontrada", em vez de confirmar que ela existe. O banco recusaria de qualquer
+     * forma, pela chave estrangeira composta da V7 — mas a mensagem de lá seria um erro
+     * interno, e esta é a resposta que o cliente deve receber.
+     */
+    private void validarConta(Long usuarioId, Long contaId) {
+        repositorioConta.buscarPorIdEUsuario(contaId, usuarioId)
+            .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada"));
     }
 }

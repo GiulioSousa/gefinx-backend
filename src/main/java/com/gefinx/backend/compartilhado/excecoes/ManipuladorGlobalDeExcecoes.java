@@ -1,6 +1,8 @@
 package com.gefinx.backend.compartilhado.excecoes;
 
 import com.gefinx.backend.financas.dominio.excecoes.CategoriaDuplicadaException;
+import com.gefinx.backend.financas.dominio.excecoes.ContaDuplicadaException;
+import com.gefinx.backend.financas.dominio.excecoes.ContaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.CategoriaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
@@ -43,7 +45,7 @@ public class ManipuladorGlobalDeExcecoes {
         return construirResposta(HttpStatus.BAD_REQUEST, excecao.getMessage());
     }
 
-    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, EmailJaCadastradoException.class, TipoDaCategoriaEmUsoException.class})
+    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, ContaEmUsoException.class, ContaDuplicadaException.class, EmailJaCadastradoException.class, TipoDaCategoriaEmUsoException.class})
     public ResponseEntity<ErroResposta> tratarConflito(RuntimeException excecao) {
         return construirResposta(HttpStatus.CONFLICT, excecao.getMessage());
     }

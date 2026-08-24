@@ -13,4 +13,6 @@ public interface CategoriaSpringDataRepository extends JpaRepository<CategoriaJp
     Optional<CategoriaJpaEntity> findByIdAndUsuarioId(Long id, Long usuarioId);
 
     boolean existsByNomeIgnoreCaseAndTipoAndUsuarioId(String nome, TipoTransacao tipo, Long usuarioId);
+
+    Optional<CategoriaJpaEntity> findByNomeIgnoreCaseAndTipoAndUsuarioId(String nome, TipoTransacao tipo, Long usuarioId);
 }

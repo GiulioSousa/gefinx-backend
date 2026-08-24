@@ -11,12 +11,16 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * @param valor limitado ao que a coluna {@code NUMERIC(14, 2)} comporta — 12 dígitos
- *              inteiros e 2 casas decimais. Sem esse limite, o banco resolvia o excesso
- *              por conta própria: arredondava a escala em silêncio, gravando um valor
- *              diferente do que a resposta devolvia ao cliente, e estourava em erro
- *              interno quando a parte inteira não cabia. Recusar aqui mantém a regra
- *              visível e devolve `400` no formato do resto da API.
+ * @param valor   limitado ao que a coluna {@code NUMERIC(14, 2)} comporta — 12 dígitos
+ *                inteiros e 2 casas decimais. Sem esse limite, o banco resolvia o excesso
+ *                por conta própria: arredondava a escala em silêncio, gravando um valor
+ *                diferente do que a resposta devolvia ao cliente, e estourava em erro
+ *                interno quando a parte inteira não cabia. Recusar aqui mantém a regra
+ *                visível e devolve `400` no formato do resto da API.
+ * @param contaId obrigatório desde a Etapa 19. Não há conta implícita: escolher uma pelo
+ *                cliente quando o campo faltasse acertaria enquanto o usuário tivesse uma
+ *                conta só, e passaria a lançar dinheiro no lugar errado assim que ele
+ *                tivesse duas.
  */
 public record RequisicaoTransacao(
     @NotBlank(message = "A descrição é obrigatória")
@@ -28,6 +32,7 @@ public record RequisicaoTransacao(
     BigDecimal valor,
     @NotNull(message = "O tipo é obrigatório") TipoTransacao tipo,
     @NotNull(message = "A categoria é obrigatória") Long categoriaId,
+    @NotNull(message = "A conta é obrigatória") Long contaId,
     @NotNull(message = "A data é obrigatória") LocalDate dataTransacao
 ) {
 }

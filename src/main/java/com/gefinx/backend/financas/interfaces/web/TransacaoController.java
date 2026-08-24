@@ -2,8 +2,10 @@ package com.gefinx.backend.financas.interfaces.web;
 
 import com.gefinx.backend.compartilhado.seguranca.UsuarioAutenticado;
 import com.gefinx.backend.financas.aplicacao.CategoriaService;
+import com.gefinx.backend.financas.aplicacao.ContaService;
 import com.gefinx.backend.financas.aplicacao.TransacaoService;
 import com.gefinx.backend.financas.dominio.Categoria;
+import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.Transacao;
 import com.gefinx.backend.financas.interfaces.web.dto.RequisicaoTransacao;
 import com.gefinx.backend.financas.interfaces.web.dto.RespostaTransacao;
@@ -29,10 +31,16 @@ public class TransacaoController {
 
     private final TransacaoService transacaoService;
     private final CategoriaService categoriaService;
+    private final ContaService contaService;
 
-    public TransacaoController(TransacaoService transacaoService, CategoriaService categoriaService) {
+    public TransacaoController(
+        TransacaoService transacaoService,
+        CategoriaService categoriaService,
+        ContaService contaService
+    ) {
         this.transacaoService = transacaoService;
         this.categoriaService = categoriaService;
+        this.contaService = contaService;
     }
 
     @GetMapping
@@ -40,10 +48,14 @@ public class TransacaoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         Map<Long, String> nomesPorCategoria = categoriaService.listar(usuarioId).stream()
             .collect(Collectors.toMap(Categoria::getId, Categoria::getNome));
+        Map<Long, String> nomesPorConta = contaService.listar(usuarioId).stream()
+            .collect(Collectors.toMap(Conta::getId, Conta::getNome));
 
         return transacaoService.listar(usuarioId).stream()
             .map(transacao -> RespostaTransacao.apartirDoDominio(
-                transacao, nomesPorCategoria.get(transacao.getCategoriaId())
+                transacao,
+                nomesPorCategoria.get(transacao.getCategoriaId()),
+                nomesPorConta.get(transacao.getContaId())
             ))
             .toList();
     }
@@ -53,7 +65,7 @@ public class TransacaoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         Transacao transacao = transacaoService.criar(
             usuarioId, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
-            requisicao.categoriaId(), requisicao.dataTransacao()
+            requisicao.categoriaId(), requisicao.contaId(), requisicao.dataTransacao()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(paraResposta(usuarioId, transacao));
     }
@@ -63,7 +75,7 @@ public class TransacaoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         Transacao transacao = transacaoService.atualizar(
             usuarioId, id, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
-            requisicao.categoriaId(), requisicao.dataTransacao()
+            requisicao.categoriaId(), requisicao.contaId(), requisicao.dataTransacao()
         );
         return paraResposta(usuarioId, transacao);
     }
@@ -76,6 +88,7 @@ public class TransacaoController {
 
     private RespostaTransacao paraResposta(Long usuarioId, Transacao transacao) {
         Categoria categoria = categoriaService.buscarPorId(usuarioId, transacao.getCategoriaId());
-        return RespostaTransacao.apartirDoDominio(transacao, categoria.getNome());
+        Conta conta = contaService.buscarPorId(usuarioId, transacao.getContaId());
+        return RespostaTransacao.apartirDoDominio(transacao, categoria.getNome(), conta.getNome());
     }
 }

@@ -1,7 +1,9 @@
 package com.gefinx.backend.financas.aplicacao;
 
 import com.gefinx.backend.financas.dominio.Categoria;
+import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.RepositorioCategoria;
+import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
@@ -26,17 +28,22 @@ class TransacaoServiceTest {
 
     private static final Long USUARIO = 1L;
     private static final Long CATEGORIA = 10L;
+    private static final Long CONTA = 20L;
     private static final LocalDate DATA = LocalDate.of(2026, 8, 20);
 
     private RepositorioTransacao repositorioTransacao;
     private RepositorioCategoria repositorioCategoria;
+    private RepositorioConta repositorioConta;
     private TransacaoService servico;
 
     @BeforeEach
     void preparar() {
         repositorioTransacao = mock(RepositorioTransacao.class);
         repositorioCategoria = mock(RepositorioCategoria.class);
-        servico = new TransacaoService(repositorioTransacao, repositorioCategoria);
+        repositorioConta = mock(RepositorioConta.class);
+        when(repositorioConta.buscarPorIdEUsuario(CONTA, USUARIO))
+            .thenReturn(Optional.of(new Conta(CONTA, "Conta principal", USUARIO)));
+        servico = new TransacaoService(repositorioTransacao, repositorioCategoria, repositorioConta);
     }
 
     @Test
@@ -74,7 +81,7 @@ class TransacaoServiceTest {
             .thenReturn(Optional.of(transacaoExistente()));
 
         assertThatThrownBy(() -> servico.atualizar(
-            USUARIO, 5L, "descricao", BigDecimal.TEN, TipoTransacao.DESPESA, CATEGORIA, DATA
+            USUARIO, 5L, "descricao", BigDecimal.TEN, TipoTransacao.DESPESA, CATEGORIA, CONTA, DATA
         )).isInstanceOf(TipoIncompativelComCategoriaException.class);
     }
 
@@ -87,7 +94,7 @@ class TransacaoServiceTest {
     }
 
     private void criar(TipoTransacao tipo) {
-        servico.criar(USUARIO, "descricao", BigDecimal.TEN, tipo, CATEGORIA, DATA);
+        servico.criar(USUARIO, "descricao", BigDecimal.TEN, tipo, CATEGORIA, CONTA, DATA);
     }
 
     private void categoriaExistente(TipoTransacao tipo, String nome) {
@@ -96,6 +103,21 @@ class TransacaoServiceTest {
     }
 
     private Transacao transacaoExistente() {
-        return Transacao.nova("antiga", BigDecimal.ONE, TipoTransacao.RECEITA, DATA, CATEGORIA, USUARIO);
+        return Transacao.nova("antiga", BigDecimal.ONE, TipoTransacao.RECEITA, DATA, CATEGORIA, CONTA, USUARIO);
+    }
+
+    /**
+     * O banco recusaria de qualquer forma, pela chave estrangeira composta da V7 — mas de
+     * lá viria um erro interno, e o cliente tem de receber "não encontrada".
+     */
+    @Test
+    void recusaContaDeOutroUsuario() {
+        categoriaExistente(TipoTransacao.DESPESA, "Alimentação");
+        when(repositorioConta.buscarPorIdEUsuario(CONTA, USUARIO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> criar(TipoTransacao.DESPESA))
+            .isInstanceOf(RecursoNaoEncontradoException.class);
+
+        verify(repositorioTransacao, never()).salvar(any());
     }
 }

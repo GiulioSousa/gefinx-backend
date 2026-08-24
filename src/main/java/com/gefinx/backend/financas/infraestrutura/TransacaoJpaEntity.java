@@ -39,6 +39,9 @@ public class TransacaoJpaEntity {
     @Column(name = "categoria_id", nullable = false)
     private Long categoriaId;
 
+    @Column(name = "conta_id", nullable = false)
+    private Long contaId;
+
     @Column(name = "usuario_id", nullable = false)
     private Long usuarioId;
 
@@ -55,6 +58,7 @@ public class TransacaoJpaEntity {
         TipoTransacao tipo,
         LocalDate dataTransacao,
         Long categoriaId,
+        Long contaId,
         Long usuarioId,
         LocalDateTime criadoEm
     ) {
@@ -64,6 +68,7 @@ public class TransacaoJpaEntity {
         this.tipo = tipo;
         this.dataTransacao = dataTransacao;
         this.categoriaId = categoriaId;
+        this.contaId = contaId;
         this.usuarioId = usuarioId;
         this.criadoEm = criadoEm;
     }
@@ -76,13 +81,14 @@ public class TransacaoJpaEntity {
             transacao.getTipo(),
             transacao.getDataTransacao(),
             transacao.getCategoriaId(),
+            transacao.getContaId(),
             transacao.getUsuarioId(),
             transacao.getCriadoEm()
         );
     }
 
     public Transacao paraDominio() {
-        return new Transacao(id, descricao, valor, tipo, dataTransacao, categoriaId, usuarioId, criadoEm);
+        return new Transacao(id, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId, criadoEm);
     }
 
     public Long getId() {
@@ -91,5 +97,9 @@ public class TransacaoJpaEntity {
 
     public Long getCategoriaId() {
         return categoriaId;
+    }
+
+    public Long getContaId() {
+        return contaId;
     }
 }

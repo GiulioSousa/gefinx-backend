@@ -13,10 +13,12 @@ public record RespostaTransacao(
     TipoTransacao tipo,
     LocalDate dataTransacao,
     Long categoriaId,
-    String nomeCategoria
+    String nomeCategoria,
+    Long contaId,
+    String nomeConta
 ) {
 
-    public static RespostaTransacao apartirDoDominio(Transacao transacao, String nomeCategoria) {
+    public static RespostaTransacao apartirDoDominio(Transacao transacao, String nomeCategoria, String nomeConta) {
         return new RespostaTransacao(
             transacao.getId(),
             transacao.getDescricao(),
@@ -24,7 +26,9 @@ public record RespostaTransacao(
             transacao.getTipo(),
             transacao.getDataTransacao(),
             transacao.getCategoriaId(),
-            nomeCategoria
+            nomeCategoria,
+            transacao.getContaId(),
+            nomeConta
         );
     }
 }

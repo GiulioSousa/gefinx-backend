@@ -44,4 +44,10 @@ public class RepositorioCategoriaJpaAdapter implements RepositorioCategoria {
     public boolean existePorNomeTipoUsuario(String nome, TipoTransacao tipo, Long usuarioId) {
         return springDataRepository.existsByNomeIgnoreCaseAndTipoAndUsuarioId(nome, tipo, usuarioId);
     }
+
+    @Override
+    public Optional<Categoria> buscarPorNomeTipoUsuario(String nome, TipoTransacao tipo, Long usuarioId) {
+        return springDataRepository.findByNomeIgnoreCaseAndTipoAndUsuarioId(nome, tipo, usuarioId)
+            .map(CategoriaJpaEntity::paraDominio);
+    }
 }

@@ -12,6 +12,7 @@ public class Transacao {
     private final TipoTransacao tipo;
     private final LocalDate dataTransacao;
     private final Long categoriaId;
+    private final Long contaId;
     private final Long usuarioId;
     private final LocalDateTime criadoEm;
 
@@ -22,6 +23,7 @@ public class Transacao {
         TipoTransacao tipo,
         LocalDate dataTransacao,
         Long categoriaId,
+        Long contaId,
         Long usuarioId,
         LocalDateTime criadoEm
     ) {
@@ -31,6 +33,7 @@ public class Transacao {
         this.tipo = tipo;
         this.dataTransacao = dataTransacao;
         this.categoriaId = categoriaId;
+        this.contaId = contaId;
         this.usuarioId = usuarioId;
         this.criadoEm = criadoEm;
     }
@@ -41,9 +44,12 @@ public class Transacao {
         TipoTransacao tipo,
         LocalDate dataTransacao,
         Long categoriaId,
+        Long contaId,
         Long usuarioId
     ) {
-        return new Transacao(null, descricao, valor, tipo, dataTransacao, categoriaId, usuarioId, LocalDateTime.now());
+        return new Transacao(
+            null, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId, LocalDateTime.now()
+        );
     }
 
     public Long getId() {
@@ -68,6 +74,10 @@ public class Transacao {
 
     public Long getCategoriaId() {
         return categoriaId;
+    }
+
+    public Long getContaId() {
+        return contaId;
     }
 
     public Long getUsuarioId() {

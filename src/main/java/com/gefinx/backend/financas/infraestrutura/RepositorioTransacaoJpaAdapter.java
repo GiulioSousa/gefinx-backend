@@ -1,6 +1,7 @@
 package com.gefinx.backend.financas.infraestrutura;
 
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
+import com.gefinx.backend.financas.dominio.SaldoDaConta;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
 import org.springframework.stereotype.Repository;
@@ -47,7 +48,22 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     }
 
     @Override
+    public boolean existePorConta(Long contaId) {
+        return springDataRepository.existsByContaId(contaId);
+    }
+
+    @Override
     public BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo) {
         return springDataRepository.somarValorPorUsuarioETipo(usuarioId, tipo);
+    }
+
+    @Override
+    public BigDecimal somarValorPorContaETipo(Long contaId, TipoTransacao tipo) {
+        return springDataRepository.somarValorPorContaETipo(contaId, tipo);
+    }
+
+    @Override
+    public List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId) {
+        return springDataRepository.resumirSaldoPorConta(usuarioId, TipoTransacao.RECEITA, TipoTransacao.DESPESA);
     }
 }
