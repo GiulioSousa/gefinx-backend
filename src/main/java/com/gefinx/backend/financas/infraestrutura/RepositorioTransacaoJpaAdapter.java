@@ -49,7 +49,7 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
 
     @Override
     public boolean existePorConta(Long contaId) {
-        return springDataRepository.existsByContaId(contaId);
+        return springDataRepository.existePorContaOrigemOuDestino(contaId);
     }
 
     @Override
@@ -63,7 +63,14 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     }
 
     @Override
+    public BigDecimal somarTransferenciasLiquidasDaConta(Long contaId) {
+        return springDataRepository.somarTransferenciasLiquidasDaConta(contaId, TipoTransacao.TRANSFERENCIA);
+    }
+
+    @Override
     public List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId) {
-        return springDataRepository.resumirSaldoPorConta(usuarioId, TipoTransacao.RECEITA, TipoTransacao.DESPESA);
+        return springDataRepository.resumirSaldoPorConta(
+            usuarioId, TipoTransacao.RECEITA, TipoTransacao.DESPESA, TipoTransacao.TRANSFERENCIA
+        );
     }
 }

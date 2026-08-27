@@ -59,4 +59,19 @@ class RequisicaoCategoriaTest {
             .map(ConstraintViolation::getMessage)
             .toList();
     }
+
+    /**
+     * O enum ganhou TRANSFERENCIA na Etapa 20, mas ele pertence à transação. Categoria só
+     * classifica o que entra ou sai — e a coluna categorias.tipo segue em VARCHAR(10),
+     * que nem comporta a palavra.
+     */
+    @Test
+    void recusaTransferenciaComoTipoDeCategoria() {
+        java.util.List<String> mensagens = validador
+            .validate(new RequisicaoCategoria("Qualquer", TipoTransacao.TRANSFERENCIA)).stream()
+            .map(jakarta.validation.ConstraintViolation::getMessage)
+            .toList();
+
+        assertThat(mensagens).contains("O tipo da categoria deve ser RECEITA ou DESPESA");
+    }
 }

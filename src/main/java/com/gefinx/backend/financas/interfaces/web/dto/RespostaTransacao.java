@@ -6,6 +6,10 @@ import com.gefinx.backend.financas.dominio.Transacao;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * Os pares categoria/conta-de-destino são mutuamente exclusivos e vêm nulos conforme o
+ * tipo: transferência não tem categoria, receita e despesa não têm destino.
+ */
 public record RespostaTransacao(
     Long id,
     String descricao,
@@ -15,10 +19,17 @@ public record RespostaTransacao(
     Long categoriaId,
     String nomeCategoria,
     Long contaId,
-    String nomeConta
+    String nomeConta,
+    Long contaDestinoId,
+    String nomeContaDestino
 ) {
 
-    public static RespostaTransacao apartirDoDominio(Transacao transacao, String nomeCategoria, String nomeConta) {
+    public static RespostaTransacao apartirDoDominio(
+        Transacao transacao,
+        String nomeCategoria,
+        String nomeConta,
+        String nomeContaDestino
+    ) {
         return new RespostaTransacao(
             transacao.getId(),
             transacao.getDescricao(),
@@ -28,7 +39,9 @@ public record RespostaTransacao(
             transacao.getCategoriaId(),
             nomeCategoria,
             transacao.getContaId(),
-            nomeConta
+            nomeConta,
+            transacao.getContaDestinoId(),
+            nomeContaDestino
         );
     }
 }

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -81,7 +82,7 @@ class TransacaoServiceTest {
             .thenReturn(Optional.of(transacaoExistente()));
 
         assertThatThrownBy(() -> servico.atualizar(
-            USUARIO, 5L, "descricao", BigDecimal.TEN, TipoTransacao.DESPESA, CATEGORIA, CONTA, DATA
+            USUARIO, 5L, "descricao", BigDecimal.TEN, TipoTransacao.DESPESA, CATEGORIA, CONTA, null, DATA
         )).isInstanceOf(TipoIncompativelComCategoriaException.class);
     }
 
@@ -94,7 +95,7 @@ class TransacaoServiceTest {
     }
 
     private void criar(TipoTransacao tipo) {
-        servico.criar(USUARIO, "descricao", BigDecimal.TEN, tipo, CATEGORIA, CONTA, DATA);
+        servico.criar(USUARIO, "descricao", BigDecimal.TEN, tipo, CATEGORIA, CONTA, null, DATA);
     }
 
     private void categoriaExistente(TipoTransacao tipo, String nome) {
@@ -119,5 +120,78 @@ class TransacaoServiceTest {
             .isInstanceOf(RecursoNaoEncontradoException.class);
 
         verify(repositorioTransacao, never()).salvar(any());
+    }
+
+    @Test
+    void gravaTransferenciaSemCategoriaEComContaDeDestino() {
+        Long contaDestino = 21L;
+        when(repositorioConta.buscarPorIdEUsuario(contaDestino, USUARIO))
+            .thenReturn(Optional.of(new Conta(contaDestino, "Carteira", USUARIO)));
+        when(repositorioTransacao.salvar(any(Transacao.class))).thenAnswer(c -> c.getArgument(0));
+
+        servico.criar(
+            USUARIO, "Passando dinheiro", BigDecimal.TEN, TipoTransacao.TRANSFERENCIA,
+            null, CONTA, contaDestino, DATA
+        );
+
+        org.mockito.ArgumentCaptor<Transacao> capturada = org.mockito.ArgumentCaptor.forClass(Transacao.class);
+        verify(repositorioTransacao).salvar(capturada.capture());
+        Transacao gravada = capturada.getValue();
+        assertThat(gravada.getTipo()).isEqualTo(TipoTransacao.TRANSFERENCIA);
+        assertThat(gravada.getCategoriaId()).isNull();
+        assertThat(gravada.getContaId()).isEqualTo(CONTA);
+        assertThat(gravada.getContaDestinoId()).isEqualTo(contaDestino);
+    }
+
+    /** Transferência não consulta categoria: não tem uma, e exigir a busca seria ruído. */
+    @Test
+    void aTransferenciaNaoConsultaCategoria() {
+        Long contaDestino = 21L;
+        when(repositorioConta.buscarPorIdEUsuario(contaDestino, USUARIO))
+            .thenReturn(Optional.of(new Conta(contaDestino, "Carteira", USUARIO)));
+        when(repositorioTransacao.salvar(any(Transacao.class))).thenAnswer(c -> c.getArgument(0));
+
+        servico.criar(
+            USUARIO, "Passando dinheiro", BigDecimal.TEN, TipoTransacao.TRANSFERENCIA,
+            null, CONTA, contaDestino, DATA
+        );
+
+        verify(repositorioCategoria, never()).buscarPorIdEUsuario(any(), any());
+    }
+
+    @Test
+    void recusaTransferenciaParaContaDeOutroUsuario() {
+        Long contaDeOutro = 99L;
+        when(repositorioConta.buscarPorIdEUsuario(contaDeOutro, USUARIO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servico.criar(
+            USUARIO, "Passando dinheiro", BigDecimal.TEN, TipoTransacao.TRANSFERENCIA,
+            null, CONTA, contaDeOutro, DATA
+        )).isInstanceOf(RecursoNaoEncontradoException.class);
+
+        verify(repositorioTransacao, never()).salvar(any());
+    }
+
+    /**
+     * Editar uma transferência para virar despesa tem de limpar a conta de destino, e o
+     * contrário tem de limpar a categoria. Repassar o campo do formato anterior deixaria
+     * uma linha híbrida, que as CHECKs da V8 recusariam como erro de banco.
+     */
+    @Test
+    void aoVirarDespesaAEdicaoLimpaAContaDeDestino() {
+        when(repositorioTransacao.buscarPorIdEUsuario(5L, USUARIO))
+            .thenReturn(Optional.of(transacaoExistente()));
+        categoriaExistente(TipoTransacao.DESPESA, "Alimentação");
+        when(repositorioTransacao.salvar(any(Transacao.class))).thenAnswer(c -> c.getArgument(0));
+
+        servico.atualizar(
+            USUARIO, 5L, "virou despesa", BigDecimal.TEN, TipoTransacao.DESPESA,
+            CATEGORIA, CONTA, 21L, DATA
+        );
+
+        org.mockito.ArgumentCaptor<Transacao> capturada = org.mockito.ArgumentCaptor.forClass(Transacao.class);
+        verify(repositorioTransacao).salvar(capturada.capture());
+        assertThat(capturada.getValue().getContaDestinoId()).isNull();
+        assertThat(capturada.getValue().getCategoriaId()).isEqualTo(CATEGORIA);
     }
 }

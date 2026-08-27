@@ -1,11 +1,11 @@
 package com.gefinx.backend.financas.aplicacao;
 
+import com.gefinx.backend.financas.dominio.Categoria;
 import com.gefinx.backend.financas.dominio.RepositorioCategoria;
 import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
-import com.gefinx.backend.financas.dominio.Categoria;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import org.springframework.stereotype.Service;
@@ -42,11 +42,15 @@ public class TransacaoService {
         TipoTransacao tipo,
         Long categoriaId,
         Long contaId,
+        Long contaDestinoId,
         LocalDate dataTransacao
     ) {
-        validarCategoria(usuarioId, categoriaId, tipo);
-        validarConta(usuarioId, contaId);
-        Transacao transacao = Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId);
+        validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+
+        Transacao transacao = tipo == TipoTransacao.TRANSFERENCIA
+            ? Transacao.novaTransferencia(descricao, valor, dataTransacao, contaId, contaDestinoId, usuarioId)
+            : Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId);
+
         return repositorioTransacao.salvar(transacao);
     }
 
@@ -58,21 +62,60 @@ public class TransacaoService {
         TipoTransacao tipo,
         Long categoriaId,
         Long contaId,
+        Long contaDestinoId,
         LocalDate dataTransacao
     ) {
-        Transacao transacaoExistente = buscarOuLancar(usuarioId, id);
-        validarCategoria(usuarioId, categoriaId, tipo);
-        validarConta(usuarioId, contaId);
-        Transacao transacaoAtualizada = new Transacao(
-            id, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId,
-            transacaoExistente.getCriadoEm()
+        Transacao existente = buscarOuLancar(usuarioId, id);
+        validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+
+        boolean ehTransferencia = tipo == TipoTransacao.TRANSFERENCIA;
+        // Zerar o campo do outro caso, em vez de repassar o que veio, é o que garante que
+        // uma transação editada de transferência para despesa (ou o contrário) não fique
+        // com resquício do formato anterior. As CHECKs da V8 recusariam a linha híbrida,
+        // mas com erro de banco em vez de um resultado correto.
+        Transacao atualizada = new Transacao(
+            id,
+            descricao,
+            valor,
+            tipo,
+            dataTransacao,
+            ehTransferencia ? null : categoriaId,
+            contaId,
+            ehTransferencia ? contaDestinoId : null,
+            usuarioId,
+            existente.getCriadoEm()
         );
-        return repositorioTransacao.salvar(transacaoAtualizada);
+
+        return repositorioTransacao.salvar(atualizada);
     }
 
     public void excluir(Long usuarioId, Long id) {
         buscarOuLancar(usuarioId, id);
         repositorioTransacao.excluir(id);
+    }
+
+    /**
+     * Valida o que só o banco sabe responder: se a categoria e as contas existem e
+     * pertencem a quem está pedindo.
+     *
+     * <p>A coerência entre {@code tipo}, {@code categoriaId} e {@code contaDestinoId} não
+     * é checada aqui — ela já veio verificada da borda, por {@code @TransferenciaValida},
+     * que é onde a checagem pura cabe e onde a mensagem sai no campo que falhou.
+     */
+    private void validarReferencias(
+        Long usuarioId,
+        TipoTransacao tipo,
+        Long categoriaId,
+        Long contaId,
+        Long contaDestinoId
+    ) {
+        validarConta(usuarioId, contaId);
+
+        if (tipo == TipoTransacao.TRANSFERENCIA) {
+            validarConta(usuarioId, contaDestinoId);
+        } else {
+            validarCategoria(usuarioId, categoriaId, tipo);
+        }
     }
 
     private Transacao buscarOuLancar(Long usuarioId, Long id) {
@@ -98,8 +141,8 @@ public class TransacaoService {
     /**
      * Busca pela dupla (id, usuário) e não só pelo id: uma conta de outro dono devolve
      * "não encontrada", em vez de confirmar que ela existe. O banco recusaria de qualquer
-     * forma, pela chave estrangeira composta da V7 — mas a mensagem de lá seria um erro
-     * interno, e esta é a resposta que o cliente deve receber.
+     * forma, pelas chaves estrangeiras compostas da V7 e da V8 — mas a mensagem de lá
+     * seria um erro interno, e esta é a resposta que o cliente deve receber.
      */
     private void validarConta(Long usuarioId, Long contaId) {
         repositorioConta.buscarPorIdEUsuario(contaId, usuarioId)

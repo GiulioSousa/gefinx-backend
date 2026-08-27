@@ -51,11 +51,14 @@ public class TransacaoController {
         Map<Long, String> nomesPorConta = contaService.listar(usuarioId).stream()
             .collect(Collectors.toMap(Conta::getId, Conta::getNome));
 
+        // Map.get(null) devolve null sem estourar, então o id ausente — categoria numa
+        // transferência, destino num lançamento comum — já cai naturalmente em nome nulo.
         return transacaoService.listar(usuarioId).stream()
             .map(transacao -> RespostaTransacao.apartirDoDominio(
                 transacao,
                 nomesPorCategoria.get(transacao.getCategoriaId()),
-                nomesPorConta.get(transacao.getContaId())
+                nomesPorConta.get(transacao.getContaId()),
+                nomesPorConta.get(transacao.getContaDestinoId())
             ))
             .toList();
     }
@@ -65,7 +68,8 @@ public class TransacaoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         Transacao transacao = transacaoService.criar(
             usuarioId, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
-            requisicao.categoriaId(), requisicao.contaId(), requisicao.dataTransacao()
+            requisicao.categoriaId(), requisicao.contaId(), requisicao.contaDestinoId(),
+            requisicao.dataTransacao()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(paraResposta(usuarioId, transacao));
     }
@@ -75,7 +79,8 @@ public class TransacaoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         Transacao transacao = transacaoService.atualizar(
             usuarioId, id, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
-            requisicao.categoriaId(), requisicao.contaId(), requisicao.dataTransacao()
+            requisicao.categoriaId(), requisicao.contaId(), requisicao.contaDestinoId(),
+            requisicao.dataTransacao()
         );
         return paraResposta(usuarioId, transacao);
     }
@@ -87,8 +92,14 @@ public class TransacaoController {
     }
 
     private RespostaTransacao paraResposta(Long usuarioId, Transacao transacao) {
-        Categoria categoria = categoriaService.buscarPorId(usuarioId, transacao.getCategoriaId());
-        Conta conta = contaService.buscarPorId(usuarioId, transacao.getContaId());
-        return RespostaTransacao.apartirDoDominio(transacao, categoria.getNome(), conta.getNome());
+        String nomeCategoria = transacao.getCategoriaId() == null
+            ? null
+            : categoriaService.buscarPorId(usuarioId, transacao.getCategoriaId()).getNome();
+        String nomeContaDestino = transacao.getContaDestinoId() == null
+            ? null
+            : contaService.buscarPorId(usuarioId, transacao.getContaDestinoId()).getNome();
+        String nomeConta = contaService.buscarPorId(usuarioId, transacao.getContaId()).getNome();
+
+        return RespostaTransacao.apartirDoDominio(transacao, nomeCategoria, nomeConta, nomeContaDestino);
     }
 }

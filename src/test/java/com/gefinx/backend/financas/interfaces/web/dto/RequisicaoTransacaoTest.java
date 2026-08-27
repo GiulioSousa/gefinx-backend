@@ -75,7 +75,7 @@ class RequisicaoTransacaoTest {
 
     private java.util.List<String> validarDescricao(String descricao) {
         return validador.validate(new RequisicaoTransacao(
-                descricao, new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, 2L, LocalDate.of(2026, 8, 20)
+                descricao, new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, 2L, null, LocalDate.of(2026, 8, 20)
             )).stream()
             .map(jakarta.validation.ConstraintViolation::getMessage)
             .toList();
@@ -88,7 +88,7 @@ class RequisicaoTransacaoTest {
 
     private java.util.Set<jakarta.validation.ConstraintViolation<RequisicaoTransacao>> validar(BigDecimal valor) {
         return validador.validate(new RequisicaoTransacao(
-            "Compra qualquer", valor, TipoTransacao.DESPESA, 1L, 2L, LocalDate.of(2026, 8, 20)
+            "Compra qualquer", valor, TipoTransacao.DESPESA, 1L, 2L, null, LocalDate.of(2026, 8, 20)
         ));
     }
 
@@ -99,7 +99,7 @@ class RequisicaoTransacaoTest {
     @Test
     void exigeAConta() {
         java.util.List<String> mensagens = validador.validate(new RequisicaoTransacao(
-                "Compra qualquer", new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, null,
+                "Compra qualquer", new BigDecimal("10.00"), TipoTransacao.DESPESA, 1L, null, null,
                 LocalDate.of(2026, 8, 20)
             )).stream()
             .map(jakarta.validation.ConstraintViolation::getMessage)

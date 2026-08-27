@@ -36,11 +36,16 @@ public class TransacaoJpaEntity {
     @Column(name = "data_transacao", nullable = false)
     private LocalDate dataTransacao;
 
-    @Column(name = "categoria_id", nullable = false)
+    /** Nulo em transferência, preenchido no resto — a CHECK da V8 garante a equivalência. */
+    @Column(name = "categoria_id")
     private Long categoriaId;
 
     @Column(name = "conta_id", nullable = false)
     private Long contaId;
+
+    /** O inverso de categoriaId: preenchido só em transferência. */
+    @Column(name = "conta_destino_id")
+    private Long contaDestinoId;
 
     @Column(name = "usuario_id", nullable = false)
     private Long usuarioId;
@@ -59,6 +64,7 @@ public class TransacaoJpaEntity {
         LocalDate dataTransacao,
         Long categoriaId,
         Long contaId,
+        Long contaDestinoId,
         Long usuarioId,
         LocalDateTime criadoEm
     ) {
@@ -69,6 +75,7 @@ public class TransacaoJpaEntity {
         this.dataTransacao = dataTransacao;
         this.categoriaId = categoriaId;
         this.contaId = contaId;
+        this.contaDestinoId = contaDestinoId;
         this.usuarioId = usuarioId;
         this.criadoEm = criadoEm;
     }
@@ -82,13 +89,17 @@ public class TransacaoJpaEntity {
             transacao.getDataTransacao(),
             transacao.getCategoriaId(),
             transacao.getContaId(),
+            transacao.getContaDestinoId(),
             transacao.getUsuarioId(),
             transacao.getCriadoEm()
         );
     }
 
     public Transacao paraDominio() {
-        return new Transacao(id, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId, criadoEm);
+        return new Transacao(
+            id, descricao, valor, tipo, dataTransacao, categoriaId, contaId, contaDestinoId,
+            usuarioId, criadoEm
+        );
     }
 
     public Long getId() {
@@ -101,5 +112,9 @@ public class TransacaoJpaEntity {
 
     public Long getContaId() {
         return contaId;
+    }
+
+    public Long getContaDestinoId() {
+        return contaDestinoId;
     }
 }

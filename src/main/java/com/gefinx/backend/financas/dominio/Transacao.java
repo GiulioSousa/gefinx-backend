@@ -13,6 +13,7 @@ public class Transacao {
     private final LocalDate dataTransacao;
     private final Long categoriaId;
     private final Long contaId;
+    private final Long contaDestinoId;
     private final Long usuarioId;
     private final LocalDateTime criadoEm;
 
@@ -24,6 +25,7 @@ public class Transacao {
         LocalDate dataTransacao,
         Long categoriaId,
         Long contaId,
+        Long contaDestinoId,
         Long usuarioId,
         LocalDateTime criadoEm
     ) {
@@ -34,10 +36,12 @@ public class Transacao {
         this.dataTransacao = dataTransacao;
         this.categoriaId = categoriaId;
         this.contaId = contaId;
+        this.contaDestinoId = contaDestinoId;
         this.usuarioId = usuarioId;
         this.criadoEm = criadoEm;
     }
 
+    /** Receita ou despesa: tem categoria, não tem conta de destino. */
     public static Transacao nova(
         String descricao,
         BigDecimal valor,
@@ -48,8 +52,33 @@ public class Transacao {
         Long usuarioId
     ) {
         return new Transacao(
-            null, descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId, LocalDateTime.now()
+            null, descricao, valor, tipo, dataTransacao, categoriaId, contaId, null, usuarioId,
+            LocalDateTime.now()
         );
+    }
+
+    /**
+     * Transferência: o oposto exato: sem categoria, com conta de destino. Os dois campos
+     * são fixados aqui em vez de virem por parâmetro porque a combinação é a definição do
+     * que é uma transferência, e o banco a exige assim — as CHECKs da V8 recusariam
+     * qualquer outra.
+     */
+    public static Transacao novaTransferencia(
+        String descricao,
+        BigDecimal valor,
+        LocalDate dataTransacao,
+        Long contaOrigemId,
+        Long contaDestinoId,
+        Long usuarioId
+    ) {
+        return new Transacao(
+            null, descricao, valor, TipoTransacao.TRANSFERENCIA, dataTransacao, null,
+            contaOrigemId, contaDestinoId, usuarioId, LocalDateTime.now()
+        );
+    }
+
+    public boolean ehTransferencia() {
+        return tipo == TipoTransacao.TRANSFERENCIA;
     }
 
     public Long getId() {
@@ -78,6 +107,10 @@ public class Transacao {
 
     public Long getContaId() {
         return contaId;
+    }
+
+    public Long getContaDestinoId() {
+        return contaDestinoId;
     }
 
     public Long getUsuarioId() {

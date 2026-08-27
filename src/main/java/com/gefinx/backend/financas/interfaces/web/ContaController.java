@@ -47,7 +47,9 @@ public class ContaController {
             .collect(Collectors.toMap(SaldoDaConta::contaId, SaldoDaConta::saldo));
 
         return contaService.listar(usuarioId).stream()
-            // Conta sem transação alguma não aparece no agrupamento; o saldo dela é zero.
+            // Desde a Etapa 20 o agrupamento parte de `contas`, então toda conta vem no
+            // resultado, inclusive a que nunca recebeu lançamento. O valor padrão fica
+            // como rede: uma conta sem saldo apurado vale zero, nunca nulo.
             .map(conta -> RespostaConta.apartirDoDominio(conta, saldos.getOrDefault(conta.getId(), BigDecimal.ZERO)))
             .toList();
     }
