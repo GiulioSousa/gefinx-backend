@@ -23,6 +23,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -67,6 +68,36 @@ public class ManipuladorGlobalDeExcecoes {
         Map<String, String> erros = new LinkedHashMap<>();
         excecao.getBindingResult().getFieldErrors()
             .forEach(erro -> erros.put(erro.getField(), erro.getDefaultMessage()));
+
+        ErroResposta corpo = new ErroResposta(HttpStatus.BAD_REQUEST.value(), "Dados inválidos", erros);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
+    }
+
+    /**
+     * Validação que falha num parâmetro de requisição, e não no corpo.
+     *
+     * <p>Sem este manipulador, {@code @Min}/{@code @Max} num {@code @RequestParam} não
+     * produzem `400`: a exceção é de um tipo que nenhum dos manipuladores acima conhece,
+     * cai no genérico do fim e volta como `500`. É a mesma classe de falha que a Etapa 13
+     * fechou para corpo ilegível e verbo errado — um erro de quem chamou saindo como falha
+     * do servidor —, reaberta pelo primeiro parâmetro validado da API.
+     *
+     * <p>O mapa {@code erros} é montado por nome de parâmetro, e não só a mensagem geral,
+     * para que a garantia da Etapa 16 valha também aqui: o cliente mostra o erro sob o
+     * campo que falhou, e "Dados inválidos" com mapa vazio não permitiria isso.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ErroResposta> tratarValidacaoDeParametro(HandlerMethodValidationException excecao) {
+        Map<String, String> erros = new LinkedHashMap<>();
+        excecao.getParameterValidationResults().forEach(resultado -> {
+            String parametro = resultado.getMethodParameter().getParameterName();
+            resultado.getResolvableErrors().stream()
+                .findFirst()
+                .ifPresent(erro -> erros.put(
+                    parametro == null ? "parametro" : parametro,
+                    erro.getDefaultMessage()
+                ));
+        });
 
         ErroResposta corpo = new ErroResposta(HttpStatus.BAD_REQUEST.value(), "Dados inválidos", erros);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
