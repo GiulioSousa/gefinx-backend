@@ -3,12 +3,12 @@ package com.gefinx.backend.financas.interfaces.web;
 import com.gefinx.backend.compartilhado.seguranca.UsuarioAutenticado;
 import com.gefinx.backend.financas.aplicacao.CategoriaService;
 import com.gefinx.backend.financas.aplicacao.ContaService;
+import com.gefinx.backend.financas.aplicacao.TransacaoComNomes;
 import com.gefinx.backend.financas.aplicacao.TransacaoService;
 import com.gefinx.backend.financas.dominio.Categoria;
 import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
-import com.gefinx.backend.financas.dominio.Transacao;
 import com.gefinx.backend.financas.interfaces.web.dto.RequisicaoTransacao;
 import com.gefinx.backend.financas.interfaces.web.dto.RespostaPagina;
 import com.gefinx.backend.financas.interfaces.web.dto.RespostaTransacao;
@@ -102,23 +102,23 @@ public class TransacaoController {
     @PostMapping
     public ResponseEntity<RespostaTransacao> criar(@Valid @RequestBody RequisicaoTransacao requisicao) {
         Long usuarioId = UsuarioAutenticado.obterId();
-        Transacao transacao = transacaoService.criar(
+        TransacaoComNomes resultado = transacaoService.criar(
             usuarioId, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
             requisicao.categoriaId(), requisicao.contaId(), requisicao.contaDestinoId(),
             requisicao.dataTransacao()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(paraResposta(usuarioId, transacao));
+        return ResponseEntity.status(HttpStatus.CREATED).body(paraResposta(resultado));
     }
 
     @PutMapping("/{id}")
     public RespostaTransacao atualizar(@PathVariable Long id, @Valid @RequestBody RequisicaoTransacao requisicao) {
         Long usuarioId = UsuarioAutenticado.obterId();
-        Transacao transacao = transacaoService.atualizar(
+        TransacaoComNomes resultado = transacaoService.atualizar(
             usuarioId, id, requisicao.descricao(), requisicao.valor(), requisicao.tipo(),
             requisicao.categoriaId(), requisicao.contaId(), requisicao.contaDestinoId(),
             requisicao.dataTransacao()
         );
-        return paraResposta(usuarioId, transacao);
+        return paraResposta(resultado);
     }
 
     @DeleteMapping("/{id}")
@@ -127,15 +127,17 @@ public class TransacaoController {
         return ResponseEntity.noContent().build();
     }
 
-    private RespostaTransacao paraResposta(Long usuarioId, Transacao transacao) {
-        String nomeCategoria = transacao.getCategoriaId() == null
-            ? null
-            : categoriaService.buscarPorId(usuarioId, transacao.getCategoriaId()).getNome();
-        String nomeContaDestino = transacao.getContaDestinoId() == null
-            ? null
-            : contaService.buscarPorId(usuarioId, transacao.getContaDestinoId()).getNome();
-        String nomeConta = contaService.buscarPorId(usuarioId, transacao.getContaId()).getNome();
-
-        return RespostaTransacao.apartirDoDominio(transacao, nomeCategoria, nomeConta, nomeContaDestino);
+    /**
+     * Os nomes ja vem do caso de uso, que os carregou para validar as referencias. Antes
+     * eram buscados de novo aqui — ate tres consultas por escrita para reler o que a
+     * validacao acabara de ler.
+     */
+    private RespostaTransacao paraResposta(TransacaoComNomes resultado) {
+        return RespostaTransacao.apartirDoDominio(
+            resultado.transacao(),
+            resultado.nomeCategoria(),
+            resultado.nomeConta(),
+            resultado.nomeContaDestino()
+        );
     }
 }

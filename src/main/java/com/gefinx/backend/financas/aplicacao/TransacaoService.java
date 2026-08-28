@@ -1,6 +1,7 @@
 package com.gefinx.backend.financas.aplicacao;
 
 import com.gefinx.backend.financas.dominio.Categoria;
+import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
 import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.RepositorioCategoria;
@@ -36,7 +37,7 @@ public class TransacaoService {
         return repositorioTransacao.listarPorUsuario(usuarioId, filtro, pagina, tamanho);
     }
 
-    public Transacao criar(
+    public TransacaoComNomes criar(
         Long usuarioId,
         String descricao,
         BigDecimal valor,
@@ -46,16 +47,16 @@ public class TransacaoService {
         Long contaDestinoId,
         LocalDate dataTransacao
     ) {
-        validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+        Referencias referencias = validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
 
         Transacao transacao = tipo == TipoTransacao.TRANSFERENCIA
             ? Transacao.novaTransferencia(descricao, valor, dataTransacao, contaId, contaDestinoId, usuarioId)
             : Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId);
 
-        return repositorioTransacao.salvar(transacao);
+        return comNomes(repositorioTransacao.salvar(transacao), referencias);
     }
 
-    public Transacao atualizar(
+    public TransacaoComNomes atualizar(
         Long usuarioId,
         Long id,
         String descricao,
@@ -67,7 +68,7 @@ public class TransacaoService {
         LocalDate dataTransacao
     ) {
         Transacao existente = buscarOuLancar(usuarioId, id);
-        validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+        Referencias referencias = validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
 
         boolean ehTransferencia = tipo == TipoTransacao.TRANSFERENCIA;
         // Zerar o campo do outro caso, em vez de repassar o que veio, é o que garante que
@@ -87,7 +88,7 @@ public class TransacaoService {
             existente.getCriadoEm()
         );
 
-        return repositorioTransacao.salvar(atualizada);
+        return comNomes(repositorioTransacao.salvar(atualizada), referencias);
     }
 
     public void excluir(Long usuarioId, Long id) {
@@ -103,20 +104,32 @@ public class TransacaoService {
      * é checada aqui — ela já veio verificada da borda, por {@code @TransferenciaValida},
      * que é onde a checagem pura cabe e onde a mensagem sai no campo que falhou.
      */
-    private void validarReferencias(
+    private Referencias validarReferencias(
         Long usuarioId,
         TipoTransacao tipo,
         Long categoriaId,
         Long contaId,
         Long contaDestinoId
     ) {
-        validarConta(usuarioId, contaId);
+        Conta conta = validarConta(usuarioId, contaId);
 
         if (tipo == TipoTransacao.TRANSFERENCIA) {
-            validarConta(usuarioId, contaDestinoId);
-        } else {
-            validarCategoria(usuarioId, categoriaId, tipo);
+            return new Referencias(null, conta, validarConta(usuarioId, contaDestinoId));
         }
+        return new Referencias(validarCategoria(usuarioId, categoriaId, tipo), conta, null);
+    }
+
+    private TransacaoComNomes comNomes(Transacao transacao, Referencias referencias) {
+        return new TransacaoComNomes(
+            transacao,
+            referencias.categoria() == null ? null : referencias.categoria().getNome(),
+            referencias.conta().getNome(),
+            referencias.contaDestino() == null ? null : referencias.contaDestino().getNome()
+        );
+    }
+
+    /** O que a validacao carregou, guardado para a borda nao precisar buscar de novo. */
+    private record Referencias(Categoria categoria, Conta conta, Conta contaDestino) {
     }
 
     private Transacao buscarOuLancar(Long usuarioId, Long id) {
@@ -130,13 +143,15 @@ public class TransacaoService {
      * consegue explicar — e recusar é melhor do que corrigir em silêncio, pelo mesmo
      * motivo que o valor fora de escala é recusado em vez de arredondado.
      */
-    private void validarCategoria(Long usuarioId, Long categoriaId, TipoTransacao tipo) {
+    private Categoria validarCategoria(Long usuarioId, Long categoriaId, TipoTransacao tipo) {
         Categoria categoria = repositorioCategoria.buscarPorIdEUsuario(categoriaId, usuarioId)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada"));
 
         if (categoria.getTipo() != tipo) {
             throw new TipoIncompativelComCategoriaException(tipo, categoria.getNome(), categoria.getTipo());
         }
+
+        return categoria;
     }
 
     /**
@@ -145,8 +160,8 @@ public class TransacaoService {
      * forma, pelas chaves estrangeiras compostas da V7 e da V8 — mas a mensagem de lá
      * seria um erro interno, e esta é a resposta que o cliente deve receber.
      */
-    private void validarConta(Long usuarioId, Long contaId) {
-        repositorioConta.buscarPorIdEUsuario(contaId, usuarioId)
+    private Conta validarConta(Long usuarioId, Long contaId) {
+        return repositorioConta.buscarPorIdEUsuario(contaId, usuarioId)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada"));
     }
 }
