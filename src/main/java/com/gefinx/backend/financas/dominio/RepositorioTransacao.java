@@ -8,7 +8,13 @@ public interface RepositorioTransacao {
 
     Transacao salvar(Transacao transacao);
 
-    List<Transacao> listarPorUsuario(Long usuarioId);
+    /**
+     * Uma fatia do histórico do usuário, do lançamento mais recente para o mais antigo.
+     *
+     * <p>Devolve {@link Pagina} e não {@code List} porque o histórico só cresce: uma
+     * listagem sem teto carrega tudo que já foi lançado para exibir a primeira tela.
+     */
+    Pagina<Transacao> listarPorUsuario(Long usuarioId, FiltroDeTransacoes filtro, int pagina, int tamanho);
 
     Optional<Transacao> buscarPorIdEUsuario(Long id, Long usuarioId);
 

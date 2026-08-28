@@ -1,6 +1,8 @@
 package com.gefinx.backend.financas.aplicacao;
 
 import com.gefinx.backend.financas.dominio.Categoria;
+import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
+import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.RepositorioCategoria;
 import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
@@ -12,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 
 @Service
 public class TransacaoService {
@@ -31,8 +32,8 @@ public class TransacaoService {
         this.repositorioConta = repositorioConta;
     }
 
-    public List<Transacao> listar(Long usuarioId) {
-        return repositorioTransacao.listarPorUsuario(usuarioId);
+    public Pagina<Transacao> listar(Long usuarioId, FiltroDeTransacoes filtro, int pagina, int tamanho) {
+        return repositorioTransacao.listarPorUsuario(usuarioId, filtro, pagina, tamanho);
     }
 
     public Transacao criar(
