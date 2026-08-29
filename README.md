@@ -72,14 +72,95 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 mvn spring-boot:run
 ```
 
-O Flyway aplica as migrations `V1`–`V6` automaticamente. A API fica em
+O Flyway aplica as migrations `V1`–`V9` automaticamente. A API fica em
 `http://localhost:8080/api`.
 
 ### Em produção
 
-Em vez de `application-local.yml`, defina `SPRING_PROFILES_ACTIVE` e as variáveis `DB_URL`,
-`DB_USERNAME`, `DB_PASSWORD`, `DB_MIGRACAO_USERNAME`, `DB_MIGRACAO_PASSWORD`, `JWT_SECRET` e
-`JWT_EXPIRACAO_MINUTOS`.
+A aplicação não guarda segredo em arquivo versionado: `DB_PASSWORD` e `JWT_SECRET` não têm valor
+padrão, e a subida **falha** se faltarem — que é o comportamento desejado.
+
+#### Variáveis
+
+| Variável | Obrigatória | Para quê |
+|---|---|---|
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | sim | Conexão de execução (`gefinx_app`) |
+| `DB_MIGRACAO_USERNAME`, `DB_MIGRACAO_PASSWORD` | sim | Credencial do Flyway (`gefinx_migracao`) |
+| `JWT_SECRET` | sim | Base64, mínimo 48 bytes para HS384 |
+| `JWT_EXPIRACAO_MINUTOS` | não | Padrão 1440 (24h) |
+| `SERVER_ADDRESS` | **sim, atrás de proxy** | `127.0.0.1` — o proxy passa a ser a única entrada |
+| `FORWARD_HEADERS_STRATEGY` | **sim, atrás de proxy** | `FRAMEWORK` — ver o aviso abaixo |
+| `CORS_ORIGENS` | não | Vazio quando frontend e API dividem o domínio |
+| `MANAGEMENT_PORT` | não | Padrão 8081, sempre em `127.0.0.1` |
+
+#### O par que precisa andar junto
+
+`FORWARD_HEADERS_STRATEGY=FRAMEWORK` e `SERVER_ADDRESS=127.0.0.1` **só são seguros juntos**, e
+definir um sem o outro é pior do que não definir nenhum:
+
+- **Sem `FRAMEWORK`**, atrás de um proxy, `getRemoteAddr()` devolve o endereço do próprio proxy em
+  toda requisição. Os baldes do limite por origem colapsam num só: o primeiro usuário que errar
+  cinco senhas tranca o login de todos. A proteção vira negação de serviço.
+- **Com `FRAMEWORK` mas sem o bind em loopback**, quem alcançar a aplicação diretamente forja o
+  próprio `X-Forwarded-For` e escapa do limite à vontade.
+
+O nginx precisa **sobrescrever** o cabeçalho, e não repassar o que o cliente mandou:
+
+```nginx
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Host $host;
+```
+
+#### Roteiro — VPS com nginx e systemd
+
+1. **Banco.** `CREATE DATABASE gefinx_db`, depois `db/criar-roles.sql` como superusuário, com as
+   senhas reais no lugar dos marcadores. O script funciona em banco vazio.
+2. **Backend.** `mvn clean package` gera o jar; rode-o por uma unit do systemd com
+   `Restart=always`, usuário sem privilégio, e **`WorkingDirectory` explícito** — `logging.file.name`
+   é relativo, e sem isso a trilha de auditoria vai parar em lugar imprevisível. Os segredos vão num
+   `EnvironmentFile` com permissão `600`, fora do repositório.
+3. **Frontend.** `npm ci && npm run build` **no servidor**, e sirva o `dist/` pelo nginx.
+
+   > O Vite embute `.env.local` também no build de produção. Buildar na máquina de desenvolvimento
+   > e enviar o `dist/` publica um frontend que fala com `http://localhost:8080` — o localhost de
+   > quem visita. Se precisar buildar fora do servidor, remova o `.env.local` antes e confira com
+   > `grep -r "localhost:8080" dist/`.
+
+4. **nginx.** Servir o `dist/` e fazer `proxy_pass` de `/api` para `127.0.0.1:8080`, no **mesmo
+   domínio**: assim frontend e API ficam na mesma origem, e o CORS deixa de ser exercido. As rotas
+   do React Router precisam de `try_files $uri $uri/ /index.html`, senão recarregar `/transacoes`
+   devolve 404.
+5. **TLS.** Let's Encrypt, com 80 redirecionando para 443. Sem isso o JWT viaja em claro, e
+   interceptar a rede é capturar a sessão.
+6. **Firewall.** Só 22, 80 e 443. A porta da API (8080), a de monitoramento (8081) e o PostgreSQL
+   nunca devem ser alcançáveis de fora.
+7. **Backup.** `pg_dump` periódico, com retenção definida — e **restauração testada pelo menos uma
+   vez**. Backup nunca restaurado não é backup, e aqui o dado é financeiro.
+
+#### Health check
+
+`GET /actuator/health` na porta de monitoramento, ligada a `127.0.0.1` e fora do proxy:
+
+```bash
+curl 127.0.0.1:8081/actuator/health   # {"status":"UP"}
+```
+
+Só `health` está exposto; qualquer outro endpoint do Actuator responde `401`. O corpo não traz
+detalhe de banco, disco ou versão.
+
+#### Antes da primeira subida
+
+As migrations `V1`–`V9` sempre foram aplicadas sobre um banco que já existia. **Aplicá-las num
+banco vazio ainda não foi exercitado** — a análise indica que são inofensivas sem dados (as guardas
+da `V4` e da `V7` contam zero e não disparam), mas isso é análise, não prova. Faça o ensaio num
+banco descartável antes de valer para produção, e confirme:
+
+```sql
+SELECT version, success FROM flyway_schema_history ORDER BY installed_rank;
+```
+
+Nove linhas, todas com `success = t`.
 
 ---
 
@@ -237,9 +318,13 @@ Os scripts em `db/` rodam como superusuário, fora do ciclo do Flyway:
 ## Limitações conhecidas
 
 - **Sem varredura de CVE**: o `dependency-check` exige chave de API da NVD, e manter credencial
-  externa viva não se paga aqui. O que resta é `mvn versions:display-dependency-updates`, que
-  cobre frescor e não vulnerabilidade.
-- **Sem OpenAPI/Swagger, Actuator ou CI.**
+  externa viva não se pagava num projeto que não saía da máquina. O que resta é
+  `mvn versions:display-dependency-updates`, que cobre frescor e não vulnerabilidade. **Publicar
+  muda essa conta**: uma CVE em dependência exposta à internet é explorável, e esta é a primeira
+  linha a revisitar antes do deploy.
+- **Sem OpenAPI/Swagger nem CI.** O Actuator entrou na Etapa 22, mas só pelo health check.
+- **Limite de requisições e sessões em memória** (Caffeine): valem por instância e se perdem no
+  reinício. Com mais de uma instância, migrar para armazenamento compartilhado.
 - **Token em `localStorage`** no cliente, exposto a XSS. A alternativa — cookie `httpOnly` —
   mudaria o desenho da autenticação.
 - **Sem refresh token**: a sessão dura 24h e acaba.
