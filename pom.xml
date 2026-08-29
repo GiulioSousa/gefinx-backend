@@ -78,6 +78,15 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
+		<!--
+			Só pelo health check, exposto numa porta própria ligada ao loopback: quem
+			supervisiona o processo precisa de uma resposta que não dependa de ter sessão.
+			Ver o bloco `management` do application.yml.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
