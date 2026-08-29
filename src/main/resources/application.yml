@@ -1,5 +1,20 @@
 server:
   port: 8080
+  # Em produção, o backend fica atrás de um proxy reverso e não deve ser alcançável
+  # diretamente: com `server.address` em loopback, o proxy é a única porta de entrada.
+  # Isso não é conforto — é a condição que torna `forward-headers-strategy` seguro logo
+  # abaixo. Vazio em desenvolvimento, para escutar em todas as interfaces como antes.
+  address: ${SERVER_ADDRESS:}
+  # O limite por origem da Etapa 4 usa `getRemoteAddr()`. Atrás de um proxy, esse método
+  # devolve o endereço do próprio proxy para toda requisição, e os baldes de todos os
+  # usuários colapsam num só: o primeiro que errasse cinco senhas trancaria o login de
+  # todo mundo — a proteção viraria negação de serviço.
+  #
+  # Com FRAMEWORK, o contêiner resolve o endereço real a partir de `X-Forwarded-For` antes
+  # de a requisição chegar ao filtro. Só é seguro porque o proxy sobrescreve esse cabeçalho
+  # e o `address` acima impede que alguém fale com a aplicação sem passar por ele; sem as
+  # duas coisas juntas, o cliente forjaria o próprio endereço e escaparia do limite.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:NONE}
 
 spring:
   application:
@@ -42,6 +57,12 @@ logging:
     AUDITORIA: INFO
 
 gefinx:
+  cors:
+    # Origens autorizadas a chamar a API de outro domínio. O padrão é o servidor de
+    # desenvolvimento do Vite. Servindo frontend e API sob o mesmo domínio — que é o
+    # desenho de produção —, requisição de mesma origem não passa por CORS, e a lista
+    # pode ficar vazia: `CORS_ORIGENS=` desliga o acesso entre origens por completo.
+    origens: ${CORS_ORIGENS:http://localhost:5173}
   jwt:
     secret: ${JWT_SECRET}
     expiracao-minutos: ${JWT_EXPIRACAO_MINUTOS:1440}
@@ -58,3 +79,24 @@ gefinx:
     registro:
       tentativas: 3
       janela: 10m
+
+management:
+  server:
+    # Porta e endereço próprios, separados da API e ligados ao loopback: o health check
+    # existe para quem opera a máquina, não para a internet. Deixá-lo na 8080 o exporia
+    # pelo proxy, e a alternativa — protegê-lo com autenticação — quebraria justamente o
+    # uso que ele tem, que é responder antes de alguém estar autenticado.
+    port: ${MANAGEMENT_PORT:8081}
+    address: 127.0.0.1
+  endpoints:
+    web:
+      exposure:
+        # Só health. O padrão do Actuator já é restritivo, mas declarar o conjunto evita
+        # que uma atualização do framework passe a expor algo novo sem ninguém decidir.
+        include: health
+  endpoint:
+    health:
+      # Sem detalhes: o corpo diz UP ou DOWN e nada sobre banco, disco ou versão. Mesmo
+      # numa porta fechada, detalhe de infraestrutura em resposta é mapa do sistema.
+      show-details: never
+      show-components: never

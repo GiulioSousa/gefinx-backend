@@ -22,3 +22,23 @@ gefinx:
     # Chave Base64 de no mínimo 48 bytes (HS384). Gere com:
     #   node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
     secret: SUA_CHAVE_BASE64
+
+## As chaves abaixo têm padrão bom para desenvolvimento e NÃO precisam ser preenchidas
+## aqui. Estão documentadas porque são as que mudam ao publicar, e todas viajam por
+## variável de ambiente — ver a seção de deploy no README.
+##
+## CORS_ORIGENS              origens autorizadas a chamar a API de outro domínio.
+##                           Padrão: http://localhost:5173. Servindo frontend e API sob o
+##                           mesmo domínio, deixe VAZIO: mesma origem não passa por CORS.
+##
+## SERVER_ADDRESS            endereço de escuta. Padrão: todas as interfaces.
+##                           Em produção: 127.0.0.1, para que só o proxy alcance a API.
+##
+## FORWARD_HEADERS_STRATEGY  padrão NONE. Atrás de proxy: FRAMEWORK, para que o limite por
+##                           origem enxergue o endereço real do cliente em vez do endereço
+##                           do proxy. Só use junto com SERVER_ADDRESS=127.0.0.1 e com um
+##                           proxy que SOBRESCREVA X-Forwarded-For: sem as duas coisas, o
+##                           cliente forja o próprio endereço e escapa do limite.
+##
+## MANAGEMENT_PORT           porta do health check. Padrão: 8081, sempre em 127.0.0.1.
+##                           Nunca deve ser exposta pelo proxy nem pelo firewall.
