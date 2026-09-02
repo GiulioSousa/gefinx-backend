@@ -6,31 +6,31 @@ import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class NormalizadorDeEmailTest {
+class NormalizadorDeUsuarioTest {
 
     @Test
     void reduzMaiusculasAMinusculas() {
-        assertThat(NormalizadorDeEmail.normalizar("TESTE@Exemplo.COM")).isEqualTo("teste@exemplo.com");
+        assertThat(NormalizadorDeUsuario.normalizar("Fulano")).isEqualTo("fulano");
     }
 
     @Test
     void removeEspacosNasPontas() {
-        assertThat(NormalizadorDeEmail.normalizar("  teste@exemplo.com  ")).isEqualTo("teste@exemplo.com");
+        assertThat(NormalizadorDeUsuario.normalizar("  fulano  ")).isEqualTo("fulano");
     }
 
     @Test
     void mantemNuloComoNulo() {
-        assertThat(NormalizadorDeEmail.normalizar(null)).isNull();
+        assertThat(NormalizadorDeUsuario.normalizar(null)).isNull();
     }
 
     @Test
-    void naoAlteraEmailJaCanonico() {
-        assertThat(NormalizadorDeEmail.normalizar("teste@exemplo.com")).isEqualTo("teste@exemplo.com");
+    void naoAlteraNomeJaCanonico() {
+        assertThat(NormalizadorDeUsuario.normalizar("fulano")).isEqualTo("fulano");
     }
 
     /**
      * Em turco o minúsculo de {@code I} é {@code ı}, sem pingo. Com o locale da máquina,
-     * o mesmo endereço normalizaria diferente conforme onde a aplicação roda, e duas
+     * o mesmo nome normalizaria diferente conforme onde a aplicação roda, e duas
      * instâncias discordariam sobre qual conta é qual.
      */
     @Test
@@ -38,7 +38,7 @@ class NormalizadorDeEmailTest {
         Locale original = Locale.getDefault();
         try {
             Locale.setDefault(Locale.forLanguageTag("tr"));
-            assertThat(NormalizadorDeEmail.normalizar("FILIPE@EXEMPLO.COM")).isEqualTo("filipe@exemplo.com");
+            assertThat(NormalizadorDeUsuario.normalizar("FILIPE")).isEqualTo("filipe");
         } finally {
             Locale.setDefault(original);
         }

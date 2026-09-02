@@ -4,11 +4,8 @@ import java.util.Optional;
 
 public interface RepositorioUsuario {
 
-    Usuario salvar(Usuario usuario);
-
-    Optional<Usuario> buscarPorEmail(String email);
+    /** Espera o nome já na forma canônica — ver {@link NormalizadorDeUsuario}. */
+    Optional<Usuario> buscarPorUsuario(String usuario);
 
     Optional<Usuario> buscarPorId(Long id);
-
-    boolean existePorEmail(String email);
 }

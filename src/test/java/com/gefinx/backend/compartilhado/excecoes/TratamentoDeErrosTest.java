@@ -1,5 +1,7 @@
 package com.gefinx.backend.compartilhado.excecoes;
 
+import com.gefinx.backend.apoio.ContasDeTeste;
+import com.gefinx.backend.usuarios.infraestrutura.JwtService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,14 +31,15 @@ import static org.assertj.core.api.Assertions.assertThat;
     properties = {
         // O limite por origem não é o objeto deste teste, e barraria as requisições
         // antes que elas chegassem ao ponto que interessa.
-        "gefinx.limite-requisicoes.login.tentativas=100",
-        "gefinx.limite-requisicoes.registro.tentativas=100"
+        "gefinx.limite-requisicoes.login.tentativas=100"
     }
 )
 class TratamentoDeErrosTest {
 
     private static final String LOGIN = "/api/auth/login";
-    private static final String CREDENCIAIS = "{\"email\":\"ninguem@exemplo.com\",\"senha\":\"senha-qualquer\"}";
+    private static final String CREDENCIAIS = "{\"usuario\":\"ninguem\",\"senha\":\"senha-qualquer\"}";
+
+    private static final String PREFIXO = "erros-";
 
     private final HttpClient clienteHttp = HttpClient.newHttpClient();
 
@@ -46,10 +49,13 @@ class TratamentoDeErrosTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private JwtService jwtService;
+
     /** As rotas protegidas exigem conta de verdade, e não há endpoint que as apague. */
     @AfterEach
     void removerContasDoTeste() {
-        jdbcTemplate.update("DELETE FROM usuarios WHERE email LIKE 'erros-%'");
+        jdbcTemplate.update("DELETE FROM usuarios WHERE usuario LIKE ?", PREFIXO + "%");
     }
 
     @Test
@@ -71,7 +77,7 @@ class TratamentoDeErrosTest {
 
     @Test
     void devolveDadosInvalidosParaJsonTruncado() {
-        var resposta = enviar("POST", LOGIN, "{\"email\":".getBytes(StandardCharsets.UTF_8), "application/json");
+        var resposta = enviar("POST", LOGIN, "{\"usuario\":".getBytes(StandardCharsets.UTF_8), "application/json");
 
         assertThat(resposta.statusCode()).isEqualTo(400);
         assertThat(resposta.body()).contains("\"status\":400");
@@ -79,7 +85,7 @@ class TratamentoDeErrosTest {
 
     @Test
     void devolveDadosInvalidosParaCampoComTipoErrado() {
-        var corpo = "{\"email\":{\"interno\":1},\"senha\":\"senha-qualquer\"}";
+        var corpo = "{\"usuario\":{\"interno\":1},\"senha\":\"senha-qualquer\"}";
 
         var resposta = enviar("POST", LOGIN, corpo.getBytes(StandardCharsets.UTF_8), "application/json");
 
@@ -88,7 +94,7 @@ class TratamentoDeErrosTest {
 
     @Test
     void devolveDadosInvalidosParaBytesInvalidosEmUtf8() {
-        byte[] corpo = new byte[]{'{', '"', 'e', 'm', 'a', 'i', 'l', '"', ':', '"', (byte) 0xFF, (byte) 0xFE, '"', '}'};
+        byte[] corpo = new byte[]{'{', '"', 'u', 's', 'u', 'a', 'r', 'i', 'o', '"', ':', '"', (byte) 0xFF, (byte) 0xFE, '"', '}'};
 
         var resposta = enviar("POST", LOGIN, corpo, "application/json");
 
@@ -105,7 +111,7 @@ class TratamentoDeErrosTest {
 
     @Test
     void devolveTipoNaoSuportadoParaCorpoQueNaoEJson() {
-        var resposta = enviar("POST", LOGIN, "email=alguem".getBytes(StandardCharsets.UTF_8), "text/plain");
+        var resposta = enviar("POST", LOGIN, "usuario=alguem".getBytes(StandardCharsets.UTF_8), "text/plain");
 
         assertThat(resposta.statusCode()).isEqualTo(415);
     }
@@ -160,7 +166,7 @@ class TratamentoDeErrosTest {
 
     @Test
     void devolveDadosInvalidosQuandoOIdNoCaminhoNaoENumero() {
-        String token = registrarEObterToken();
+        String token = criarContaEObterToken();
 
         var resposta = enviarComToken("DELETE", "/api/transacoes/abc", token);
 
@@ -170,12 +176,12 @@ class TratamentoDeErrosTest {
         assertThat(resposta.body()).contains("\"status\":400");
     }
 
-    private String registrarEObterToken() {
-        String email = "erros-" + System.nanoTime() + "@exemplo.com";
-        String corpo = "{\"nome\":\"Fulano\",\"email\":\"" + email + "\",\"senha\":\"uma frase de senha\"}";
-
-        var resposta = enviar("POST", "/api/auth/registrar", corpo.getBytes(StandardCharsets.UTF_8), "application/json");
-        return resposta.body().replaceAll(".*\"token\":\"([^\"]+)\".*", "$1");
+    /**
+     * A conta nasce por INSERT e o token é assinado direto: não há mais rota de cadastro, e
+     * passar pelo login só somaria uma requisição a um teste que não trata de autenticação.
+     */
+    private String criarContaEObterToken() {
+        return jwtService.gerarToken(ContasDeTeste.criar(jdbcTemplate, PREFIXO + System.nanoTime()));
     }
 
     private HttpResponse<String> enviarComToken(String metodo, String caminho, String token) {

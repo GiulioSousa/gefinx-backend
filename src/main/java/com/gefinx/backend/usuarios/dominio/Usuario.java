@@ -5,8 +5,16 @@ import java.time.LocalDateTime;
 public class Usuario {
 
     private final Long id;
-    private final String nome;
-    private final String email;
+
+    /**
+     * Nome de usuário, na forma canônica — é o que identifica a conta no login.
+     *
+     * <p>Substituiu o e-mail na Etapa em que o cadastro pela interface deixou de existir.
+     * O endereço nunca foi verificado nem usado para enviar coisa alguma, então não
+     * identificava melhor do que este campo e ainda guardava um dado pessoal a mais.
+     */
+    private final String usuario;
+
     private final String senhaHash;
     private final LocalDateTime criadoEm;
 
@@ -19,31 +27,21 @@ public class Usuario {
      */
     private final LocalDateTime sessoesValidasApos;
 
-    public Usuario(Long id, String nome, String email, String senhaHash, LocalDateTime criadoEm,
+    public Usuario(Long id, String usuario, String senhaHash, LocalDateTime criadoEm,
                    LocalDateTime sessoesValidasApos) {
         this.id = id;
-        this.nome = nome;
-        this.email = email;
+        this.usuario = usuario;
         this.senhaHash = senhaHash;
         this.criadoEm = criadoEm;
         this.sessoesValidasApos = sessoesValidasApos;
-    }
-
-    public static Usuario novo(String nome, String email, String senhaHash) {
-        LocalDateTime agora = LocalDateTime.now();
-        return new Usuario(null, nome, email, senhaHash, agora, agora);
     }
 
     public Long getId() {
         return id;
     }
 
-    public String getNome() {
-        return nome;
-    }
-
-    public String getEmail() {
-        return email;
+    public String getUsuario() {
+        return usuario;
     }
 
     public String getSenhaHash() {

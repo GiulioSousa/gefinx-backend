@@ -57,7 +57,7 @@ class CorsTest {
                 .header("Origin", ORIGEM_PERMITIDA)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(
-                    "{\"email\":\"ninguem@exemplo.com\",\"senha\":\"senha-qualquer\"}"))
+                    "{\"usuario\":\"ninguem\",\"senha\":\"senha-qualquer\"}"))
                 .build()
         );
 

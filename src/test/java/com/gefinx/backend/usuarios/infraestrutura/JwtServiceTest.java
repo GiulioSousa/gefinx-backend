@@ -32,6 +32,6 @@ class JwtServiceTest {
 
     private Usuario usuario() {
         LocalDateTime agora = LocalDateTime.now();
-        return new Usuario(7L, "Fulano", "fulano@exemplo.com", "hash", agora, agora);
+        return new Usuario(7L, "fulano", "hash", agora, agora);
     }
 }
