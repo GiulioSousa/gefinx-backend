@@ -16,23 +16,12 @@ public class RepositorioUsuarioJpaAdapter implements RepositorioUsuario {
     }
 
     @Override
-    public Usuario salvar(Usuario usuario) {
-        UsuarioJpaEntity entidade = UsuarioJpaEntity.apartirDoDominio(usuario);
-        return springDataRepository.save(entidade).paraDominio();
-    }
-
-    @Override
-    public Optional<Usuario> buscarPorEmail(String email) {
-        return springDataRepository.findByEmail(email).map(UsuarioJpaEntity::paraDominio);
+    public Optional<Usuario> buscarPorUsuario(String usuario) {
+        return springDataRepository.findByUsuario(usuario).map(UsuarioJpaEntity::paraDominio);
     }
 
     @Override
     public Optional<Usuario> buscarPorId(Long id) {
         return springDataRepository.findById(id).map(UsuarioJpaEntity::paraDominio);
-    }
-
-    @Override
-    public boolean existePorEmail(String email) {
-        return springDataRepository.existsByEmail(email);
     }
 }

@@ -8,14 +8,14 @@ class AuditoriaTest {
 
     @Test
     void trocaQuebrasDeLinhaParaQueUmValorNaoForjeUmEvento() {
-        String forjado = "alvo@exemplo.com\nlogin aceito usuario=1 email=vitima@exemplo.com";
+        String forjado = "alvo\nlogin aceito id=1 usuario=vitima";
 
         String resultado = Auditoria.seguro(forjado);
 
         // Uma linha por evento: se a quebra passasse, a segunda linha entraria na trilha
         // como um evento que nunca aconteceu.
         assertThat(resultado).doesNotContain("\n").doesNotContain("\r");
-        assertThat(resultado).startsWith("alvo@exemplo.com_login aceito");
+        assertThat(resultado).startsWith("alvo_login aceito");
     }
 
     @Test
@@ -40,6 +40,6 @@ class AuditoriaTest {
 
     @Test
     void mantemIntactoOValorComumDeUmEvento() {
-        assertThat(Auditoria.seguro("alvo@exemplo.com")).isEqualTo("alvo@exemplo.com");
+        assertThat(Auditoria.seguro("alvo")).isEqualTo("alvo");
     }
 }

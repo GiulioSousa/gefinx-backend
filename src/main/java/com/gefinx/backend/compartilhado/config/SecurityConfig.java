@@ -85,6 +85,21 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * BCrypt com o custo padrão do Spring, 10.
+     *
+     * <p><b>Este custo precisa acompanhar o {@code gen_salt('bf', N)} do
+     * {@code db/criar-usuario.sql}</b>, que é onde as senhas passaram a ser gravadas desde que o
+     * cadastro deixou de existir. Antes, o mesmo encoder gravava e conferia, e os dois não podiam
+     * divergir; agora podem.
+     *
+     * <p>Divergir não quebra o login: o {@code matches} lê o custo de dentro do hash guardado, e
+     * quem tem conta continua entrando. Quebra a defesa contra enumeração. Este bean governa o
+     * único {@code encode()} que restou na aplicação — o hash descartável do
+     * {@code AutenticacaoService}, conferido quando a conta não existe para que a resposta demore
+     * o mesmo nos dois casos. Com o script gravando em custo maior, o caminho da conta inexistente
+     * fica mais barato que o da conta real, e o relógio volta a revelar quem tem conta.
+     */
     @Bean
     public PasswordEncoder codificadorDeSenha() {
         return new BCryptPasswordEncoder();

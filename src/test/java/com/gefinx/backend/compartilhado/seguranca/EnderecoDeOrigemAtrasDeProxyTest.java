@@ -73,7 +73,7 @@ class EnderecoDeOrigemAtrasDeProxyTest {
             .header("Content-Type", "application/json")
             .header("X-Forwarded-For", enderecoDoCliente)
             .POST(HttpRequest.BodyPublishers.ofString(
-                "{\"email\":\"proxy-" + enderecoDoCliente + "@exemplo.com\",\"senha\":\"uma senha qualquer\"}"))
+                "{\"usuario\":\"proxy-" + enderecoDoCliente + "\",\"senha\":\"uma senha qualquer\"}"))
             .build();
 
         try {

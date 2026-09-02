@@ -22,8 +22,12 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Protege as rotas de autenticação contra força bruta, limitando a quantidade de
- * tentativas por origem.
+ * Protege o login contra força bruta, limitando a quantidade de tentativas por origem.
+ *
+ * <p>A lista tem uma rota só desde que o cadastro deixou de existir. Ela continua sendo
+ * uma lista, e não uma rota fixa: o desenho — casar por padrão, derivar a chave do nome
+ * do balde — é o que fecha o desvio descrito abaixo, e é ele que precisa valer para a
+ * próxima rota pública que aparecer.
  *
  * <p>O reconhecimento da rota usa {@link PathPatternRequestMatcher}, e não o valor
  * cru de {@code getRequestURI()}. A distinção é essencial: {@code getRequestURI()}
@@ -55,8 +59,7 @@ public class FiltroLimiteDeRequisicoes extends OncePerRequestFilter {
         this.limitador = limitador;
         this.objectMapper = objectMapper;
         this.rotasLimitadas = List.of(
-            new RotaLimitada("login", rotaPost("/api/auth/login"), propriedades.login()),
-            new RotaLimitada("registro", rotaPost("/api/auth/registrar"), propriedades.registro())
+            new RotaLimitada("login", rotaPost("/api/auth/login"), propriedades.login())
         );
     }
 

@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
  */
 class TrilhaDeAutenticacaoTest {
 
-    private static final String EMAIL = "alvo@exemplo.com";
+    private static final String USUARIO = "alvo";
     private static final String SENHA_DO_USUARIO = "senha-que-nao-pode-vazar";
     private static final ResultadoDaTentativa PERMITIDA = new ResultadoDaTentativa(false, 0);
     private static final ResultadoDaTentativa BLOQUEADA = new ResultadoDaTentativa(true, 900);
@@ -67,62 +67,67 @@ class TrilhaDeAutenticacaoTest {
         loggerDaTrilha.detachAppender(registros);
     }
 
+    /**
+     * O id da conta sai como {@code id=}, e não como {@code usuario=}, desde que o nome de
+     * usuário virou o identificador de login: as duas coisas na mesma chave tornariam a
+     * trilha ambígua justamente para quem a lê procurando uma conta.
+     */
     @Test
     void registraOLoginAceitoComOIdentificadorDaConta() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.of(usuario()));
         when(codificador.matches(SENHA_DO_USUARIO, "hash-real")).thenReturn(true);
 
-        servico.autenticar(EMAIL, SENHA_DO_USUARIO);
+        servico.autenticar(USUARIO, SENHA_DO_USUARIO);
 
-        assertThat(mensagens()).containsExactly("login aceito usuario=1 email=" + EMAIL);
+        assertThat(mensagens()).containsExactly("login aceito id=1 usuario=" + USUARIO);
     }
 
     @Test
     void distingueSenhaIncorretaDeContaInexistente() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.of(usuario()));
         when(codificador.matches(anyString(), anyString())).thenReturn(false);
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, "errada"))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, "errada"))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
         // A resposta HTTP não distingue os dois casos, de propósito (Etapa 5). A trilha
         // distingue, porque é lida por quem opera o sistema, não por quem tentou entrar.
         assertThat(mensagens()).containsExactly(
-            "login recusado usuario=1 email=" + EMAIL + " motivo=senha-incorreta"
+            "login recusado id=1 usuario=" + USUARIO + " motivo=senha-incorreta"
         );
     }
 
     @Test
     void registraTentativaContraContaInexistente() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.empty());
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, SENHA_DO_USUARIO))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, SENHA_DO_USUARIO))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
         assertThat(mensagens()).containsExactly(
-            "login recusado email=" + EMAIL + " motivo=conta-inexistente"
+            "login recusado usuario=" + USUARIO + " motivo=conta-inexistente"
         );
     }
 
     @Test
     void registraOBloqueioPorTentativasExcedidas() {
-        when(controle.registrar(EMAIL)).thenReturn(BLOQUEADA);
+        when(controle.registrar(USUARIO)).thenReturn(BLOQUEADA);
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, SENHA_DO_USUARIO))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, SENHA_DO_USUARIO))
             .isInstanceOf(TentativasExcedidasException.class);
 
-        assertThat(mensagens()).containsExactly("login bloqueado email=" + EMAIL + " liberaEm=900s");
+        assertThat(mensagens()).containsExactly("login bloqueado usuario=" + USUARIO + " liberaEm=900s");
     }
 
     @Test
     void nuncaRegistraASenhaSubmetida() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.empty());
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, SENHA_DO_USUARIO))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, SENHA_DO_USUARIO))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
         assertThat(mensagens()).isNotEmpty();
@@ -130,17 +135,17 @@ class TrilhaDeAutenticacaoTest {
     }
 
     @Test
-    void registraOEmailNaFormaCanonica() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.empty());
+    void registraONomeDeUsuarioNaFormaCanonica() {
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> servico.autenticar("  ALVO@Exemplo.COM ", SENHA_DO_USUARIO))
+        assertThatThrownBy(() -> servico.autenticar("  ALVO ", SENHA_DO_USUARIO))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
         // Grafias diferentes da mesma conta precisam agrupar-se na trilha; do contrário,
         // dez tentativas contra o mesmo alvo parecem dez alvos distintos.
         assertThat(mensagens()).containsExactly(
-            "login recusado email=" + EMAIL + " motivo=conta-inexistente"
+            "login recusado usuario=" + USUARIO + " motivo=conta-inexistente"
         );
     }
 
@@ -149,6 +154,6 @@ class TrilhaDeAutenticacaoTest {
     }
 
     private Usuario usuario() {
-        return new Usuario(1L, "Alvo", EMAIL, "hash-real", LocalDateTime.now(), LocalDateTime.now().minusDays(1));
+        return new Usuario(1L, USUARIO, "hash-real", LocalDateTime.now(), LocalDateTime.now().minusDays(1));
     }
 }

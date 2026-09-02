@@ -53,7 +53,24 @@ schema. O script também revoga `CONNECT` de `PUBLIC` no banco.
 Não é uma migration do Flyway de propósito — criar role exige superusuário, e o Flyway roda
 justamente *como* a role de migração, que nesse momento ainda não existe.
 
-### 3. Preencha a configuração local
+### 3. Crie a conta de acesso
+
+Não há cadastro pela interface: sem verificação de e-mail, a rota aberta deixava qualquer um que
+alcançasse o endereço criar conta e usar o sistema. A conta nasce no banco, **depois da primeira
+subida** (o Flyway precisa ter criado as tabelas):
+
+```bash
+psql -h localhost -p 5433 -U postgres -d gefinx_db -v usuario=fulano -v senha='uma frase de senha longa' -f db/criar-usuario.sql
+```
+
+O script cria o usuário com hash BCrypt via `pgcrypto` — no mesmo formato que o
+`BCryptPasswordEncoder` lê — e semeia as categorias padrão e a conta padrão, que antes vinham
+pelo cadastro. Como superusuário porque `CREATE EXTENSION pgcrypto` exige esse privilégio.
+
+A senha na linha de comando fica no histórico do shell; o cabeçalho do script mostra a alternativa
+interativa, com `\prompt`.
+
+### 4. Preencha a configuração local
 
 ```bash
 cp src/main/resources/application-example.yml src/main/resources/application-local.yml
@@ -66,7 +83,7 @@ Gere uma chave nova (Base64, mínimo 48 bytes para HS384) com:
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
-### 4. Suba
+### 5. Suba
 
 ```bash
 mvn spring-boot:run
@@ -115,7 +132,9 @@ proxy_set_header Host $host;
 #### Roteiro — VPS com nginx e systemd
 
 1. **Banco.** `CREATE DATABASE gefinx_db`, depois `db/criar-roles.sql` como superusuário, com as
-   senhas reais no lugar dos marcadores. O script funciona em banco vazio.
+   senhas reais no lugar dos marcadores. O script funciona em banco vazio. A conta de acesso vem
+   depois, com `db/criar-usuario.sql`, quando o Flyway já tiver criado as tabelas na primeira
+   subida do backend.
 2. **Backend.** `mvn clean package` gera o jar; rode-o por uma unit do systemd com
    `Restart=always`, usuário sem privilégio, e **`WorkingDirectory` explícito** — `logging.file.name`
    é relativo, e sem isso a trilha de auditoria vai parar em lugar imprevisível. Os segredos vão num
@@ -200,15 +219,16 @@ com.gefinx.backend
 | `infraestrutura` | Adaptadores JPA e serviços técnicos (JWT, cache de sessões) |
 | `interfaces/web` | Controllers REST e DTOs |
 
-O acoplamento entre contextos é deliberadamente mínimo. A única travessia é `RegistroUseCase`, que
-cria o usuário e suas categorias padrão — consciente e documentada, por ser o ponto que precisará
-virar comunicação entre serviços numa extração futura.
+O acoplamento entre contextos é hoje **nulo**: `usuarios` e `financas` não se referenciam. A única
+travessia que existia era o `RegistroUseCase`, que criava o usuário e suas categorias padrão junto;
+com o cadastro removido, ela virou o `db/criar-usuario.sql` — e o ponto que precisaria virar
+comunicação entre serviços numa extração futura deixou de existir no código.
 
 ### Modelo de dados
 
 | Tabela | Observações |
 |---|---|
-| `usuarios` | Senha em BCrypt; `CHECK (email = lower(email))`; `sessoes_validas_apos` |
+| `usuarios` | Login por `usuario` (3–60, único); senha em BCrypt; `CHECK (usuario = lower(btrim(usuario)))`; `sessoes_validas_apos` |
 | `categorias` | Único por `(nome, tipo, usuario_id)` |
 | `transacoes` | `valor NUMERIC(14,2) > 0`; o sinal vem de `tipo` |
 
@@ -226,8 +246,7 @@ Base: `http://localhost:8080/api`
 
 | Método | Rota | Auth | Retorno |
 |---|---|---|---|
-| `POST` | `/auth/registrar` | pública | `201` + token |
-| `POST` | `/auth/login` | pública | `200` + token |
+| `POST` | `/auth/login` | pública | `200` + `{token, usuario}` |
 | `GET` `POST` | `/categorias` | Bearer | lista / `201` |
 | `PUT` `DELETE` | `/categorias/{id}` | Bearer | `200` / `204` |
 | `GET` `POST` | `/transacoes` | Bearer | lista / `201` |
@@ -244,7 +263,7 @@ Uniforme em **todas** as respostas de erro, inclusive no `401` de quem não se a
 
 ```json
 { "momento": "2026-08-20T18:28:41.707Z", "status": 400, "mensagem": "Dados inválidos",
-  "erros": { "senha": "A senha deve ter no mínimo 10 caracteres" } }
+  "erros": { "usuario": "O usuário é obrigatório" } }
 ```
 
 `400` validação, corpo ilegível ou parâmetro de tipo errado · `401` credenciais ou token ·
@@ -259,34 +278,37 @@ tem leitor legítimo.
 
 ## Segurança
 
-- **JWT** HS384, expiração de 24h, stateless. Claims: `sub` (id), `email`, `nome`.
-- **Senhas** em BCrypt, mínimo de 10 caracteres, teto de 72 bytes (limite do algoritmo) e recusa
-  das mais previsíveis. Sem regra de composição, conforme o NIST SP 800-63B.
+- **JWT** HS384, expiração de 24h, stateless. Claims: `sub` (id) e `usuario`.
+- **Sem cadastro aberto**: a conta nasce por `db/criar-usuario.sql`, não pela API. O que a rota de
+  cadastro oferecia sem verificar e-mail era acesso a quem chegasse ao endereço.
+- **Senhas** em BCrypt, mínimo de 10 caracteres e teto de 72 bytes (limite do algoritmo). A regra
+  hoje é conferida pelo script de criação, único caminho por onde uma senha entra. Sem regra de
+  composição, conforme o NIST SP 800-63B.
 - **Revogação de sessões**: `DELETE /api/sessoes` move `usuarios.sessoes_validas_apos` para agora
   e derruba todo token já emitido, inclusive o de quem pediu. A emissão viaja no token em
   milissegundos, e não no `iat` — segundos não decidem o empate entre revogar e reautenticar no
   mesmo instante.
 - **Menor privilégio no banco**: ver a seção de configuração.
-- **E-mail canônico**: minúsculas e sem espaços nas pontas, na borda e reforçado por `CHECK`. A
-  mesma regra vale para cadastro, login e para a chave da trava por conta — definições divergentes
-  a tornariam contornável pela caixa das letras.
-- **Login em tempo constante**: quando o e-mail não existe, a verificação corre contra um hash
+- **Nome de usuário canônico**: minúsculas e sem espaços nas pontas, na borda e reforçado por
+  `CHECK`. A mesma regra vale para o login e para a chave da trava por conta — definições
+  divergentes a tornariam contornável pela caixa das letras. O `CHECK` pesa mais desde que a conta
+  é inserida à mão: um nome gravado fora da forma canônica seria uma conta que o login não acha.
+- **Login em tempo constante**: quando a conta não existe, a verificação corre contra um hash
   descartável antes de recusar, para que o relógio não revele quem tem conta.
 - **Trilha de auditoria** em logger próprio (`AUDITORIA`), em `logs/`: login aceito, recusado e
-  bloqueado, cadastro, encerramento de sessões e limite por origem. A senha nunca entra.
+  bloqueado, encerramento de sessões e limite por origem. A senha nunca entra.
 - **CORS** restrito a `http://localhost:5173`, **sem** `allowCredentials` — a autenticação vai no
   cabeçalho `Authorization`, não em cookie.
 
 ### Limite de requisições
 
-Token bucket (Bucket4j + Caffeine) nas rotas de autenticação. Ajuste em `application.yml`:
+Token bucket (Bucket4j + Caffeine) no login. Ajuste em `application.yml`:
 
 ```yaml
 gefinx:
   limite-requisicoes:
     login:            { tentativas: 5,  janela: 1m }
     login-por-conta:  { tentativas: 10, janela: 15m }
-    registro:         { tentativas: 3,  janela: 10m }
 ```
 
 Excedido → `429` com `Retry-After`. São dois limites diferentes: um **por origem**, que não
@@ -298,9 +320,10 @@ Três limitações a considerar antes de publicar:
    horizontalmente, migre para Redis ou Hazelcast, que o Bucket4j suporta.
 2. A origem vem de `getRemoteAddr()`, e não de `X-Forwarded-For`, que o cliente pode forjar. Atrás
    de proxy, configure `server.forward-headers-strategy`.
-3. A trava por conta é, por construção, um vetor de negação de serviço: quem souber o e-mail de
-   alguém mantém a conta bloqueada gastando dez requisições. A janela é curta e o contador zera no
-   login bem-sucedido, mas falta a terceira saída — um fluxo de recuperação de senha.
+3. A trava por conta é, por construção, um vetor de negação de serviço: quem souber o nome de
+   usuário de alguém mantém a conta bloqueada gastando dez requisições. A janela é curta e o
+   contador zera no login bem-sucedido, mas falta a terceira saída — um fluxo de recuperação de
+   senha, que hoje é um `UPDATE` no banco pelo mesmo caminho que criou a conta.
 
 ---
 

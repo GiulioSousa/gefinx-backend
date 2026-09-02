@@ -45,8 +45,7 @@ public class JwtService {
         Instant agora = Instant.now();
         return Jwts.builder()
             .subject(usuario.getId().toString())
-            .claim("email", usuario.getEmail())
-            .claim("nome", usuario.getNome())
+            .claim("usuario", usuario.getUsuario())
             .claim(CLAIM_EMISSAO_MS, agora.toEpochMilli())
             .issuedAt(Date.from(agora))
             .expiration(Date.from(agora.plus(expiracaoMinutos, ChronoUnit.MINUTES)))

@@ -1,6 +1,6 @@
 package com.gefinx.backend.financas.interfaces.web;
 
-import com.gefinx.backend.usuarios.aplicacao.RegistroUseCase;
+import com.gefinx.backend.apoio.ContasDeTeste;
 import com.gefinx.backend.usuarios.infraestrutura.JwtService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,9 +45,6 @@ class ListagemPaginadaTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private RegistroUseCase registroUseCase;
-
-    @Autowired
     private JwtService jwtService;
 
     @LocalServerPort
@@ -65,7 +62,7 @@ class ListagemPaginadaTest {
      */
     @BeforeEach
     void prepararCenario() {
-        token = registrarEObterToken(PREFIXO + System.nanoTime() + "@exemplo.com");
+        token = criarContaEObterToken();
 
         contaOrigem = extrairId(enviar("POST", "/api/contas", token,
             "{\"nome\":\"Origem\",\"saldoInicial\":0}").body());
@@ -85,7 +82,7 @@ class ListagemPaginadaTest {
 
     @AfterEach
     void limparDadosDoTeste() {
-        jdbcTemplate.update("DELETE FROM usuarios WHERE email LIKE ?", PREFIXO + "%");
+        jdbcTemplate.update("DELETE FROM usuarios WHERE usuario LIKE ?", PREFIXO + "%");
     }
 
     @Test
@@ -190,7 +187,7 @@ class ListagemPaginadaTest {
 
     @Test
     void umUsuarioNaoEnxergaOHistoricoDeOutro() {
-        String outro = registrarEObterToken(PREFIXO + System.nanoTime() + "@exemplo.com");
+        String outro = criarContaEObterToken();
 
         assertThat(descricoesDe("/api/transacoes", outro))
             .as("o id do dono sai do SecurityContext, nunca de parâmetro da requisição")
@@ -245,17 +242,17 @@ class ListagemPaginadaTest {
     }
 
     /**
-     * O usuário nasce pelo caso de uso, e não por {@code POST /api/auth/registrar}.
+     * O token é assinado aqui, sem passar por {@code POST /api/auth/login}.
      *
-     * <p>Pela porta da frente, esta classe não passa: o registro é limitado a 3 por 10
-     * minutos por origem desde a Etapa 4, e uma classe com uma dúzia de testes esgota o
-     * balde no quarto. Pior, o sintoma engana — o cadastro barrado devolve `429`, o token
-     * sai vazio e a falha aparece como `401` na listagem, longe da causa. O limite está
-     * certo e é testado onde deve, em {@code LimiteDeRequisicoesTest}; aqui ele só atrapalha
-     * o cenário, porque o que está sob teste é a listagem.
+     * <p>Pela porta da frente, esta classe não passa: o login é limitado a 5 por minuto por
+     * origem desde a Etapa 4, e uma classe com uma dúzia de testes esgota o balde no meio.
+     * Pior, o sintoma engana — o login barrado devolve `429`, o token sai vazio e a falha
+     * aparece como `401` na listagem, longe da causa. O limite está certo e é testado onde
+     * deve, em {@code LimiteDeRequisicoesTest}; aqui ele só atrapalha o cenário, porque o
+     * que está sob teste é a listagem.
      */
-    private String registrarEObterToken(String email) {
-        return jwtService.gerarToken(registroUseCase.executar("Fulano", email, "uma frase de senha"));
+    private String criarContaEObterToken() {
+        return jwtService.gerarToken(ContasDeTeste.criar(jdbcTemplate, PREFIXO + System.nanoTime()));
     }
 
     private HttpResponse<String> enviar(String metodo, String caminho, String tokenUsado, String corpo) {

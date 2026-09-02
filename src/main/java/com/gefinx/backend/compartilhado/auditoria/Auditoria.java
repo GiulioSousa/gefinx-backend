@@ -12,11 +12,11 @@ import org.slf4j.LoggerFactory;
  * não pode, junto, apagar o registro de quem entrou. O nome fixo permite endereçá-la
  * sozinha na configuração e isolá-la num arquivo próprio quando for preciso.
  *
- * <p>A senha nunca entra na trilha, em circunstância alguma. O e-mail entra, por ser o
- * único identificador da tentativa — inclusive das que não correspondem a conta nenhuma,
- * que são justamente as que interessam ao investigar força bruta.
+ * <p>A senha nunca entra na trilha, em circunstância alguma. O nome de usuário entra, por
+ * ser o único identificador da tentativa — inclusive das que não correspondem a conta
+ * nenhuma, que são justamente as que interessam ao investigar força bruta.
  *
- * <p>A trilha distingue "e-mail inexistente" de "senha incorreta", coisa que a resposta
+ * <p>A trilha distingue "conta inexistente" de "senha incorreta", coisa que a resposta
  * HTTP deliberadamente não faz (Etapa 5). Não há contradição: a resposta vai para quem
  * tentou entrar, e a trilha, para quem opera o sistema. Confundir os dois destinos foi o
  * que a Etapa 5 corrigiu — apagar a distinção aqui não protegeria ninguém e cegaria o

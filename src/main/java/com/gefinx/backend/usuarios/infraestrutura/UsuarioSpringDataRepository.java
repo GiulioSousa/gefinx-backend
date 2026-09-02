@@ -10,9 +10,7 @@ import java.util.Optional;
 
 public interface UsuarioSpringDataRepository extends JpaRepository<UsuarioJpaEntity, Long> {
 
-    Optional<UsuarioJpaEntity> findByEmail(String email);
-
-    boolean existsByEmail(String email);
+    Optional<UsuarioJpaEntity> findByUsuario(String usuario);
 
     /**
      * Só a marca, não o usuário inteiro: esta consulta corre a cada requisição autenticada

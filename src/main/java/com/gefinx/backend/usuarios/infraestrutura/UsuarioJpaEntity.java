@@ -18,11 +18,8 @@ public class UsuarioJpaEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String nome;
-
     @Column(nullable = false, unique = true)
-    private String email;
+    private String usuario;
 
     @Column(name = "senha_hash", nullable = false)
     private String senhaHash;
@@ -36,29 +33,17 @@ public class UsuarioJpaEntity {
     protected UsuarioJpaEntity() {
     }
 
-    public UsuarioJpaEntity(Long id, String nome, String email, String senhaHash, LocalDateTime criadoEm,
+    public UsuarioJpaEntity(Long id, String usuario, String senhaHash, LocalDateTime criadoEm,
                             LocalDateTime sessoesValidasApos) {
         this.id = id;
-        this.nome = nome;
-        this.email = email;
+        this.usuario = usuario;
         this.senhaHash = senhaHash;
         this.criadoEm = criadoEm;
         this.sessoesValidasApos = sessoesValidasApos;
     }
 
-    public static UsuarioJpaEntity apartirDoDominio(Usuario usuario) {
-        return new UsuarioJpaEntity(
-            usuario.getId(),
-            usuario.getNome(),
-            usuario.getEmail(),
-            usuario.getSenhaHash(),
-            usuario.getCriadoEm(),
-            usuario.getSessoesValidasApos()
-        );
-    }
-
     public Usuario paraDominio() {
-        return new Usuario(id, nome, email, senhaHash, criadoEm, sessoesValidasApos);
+        return new Usuario(id, usuario, senhaHash, criadoEm, sessoesValidasApos);
     }
 
     public Long getId() {

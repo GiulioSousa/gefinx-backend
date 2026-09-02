@@ -1,5 +1,6 @@
 package com.gefinx.backend.usuarios.interfaces.web;
 
+import com.gefinx.backend.apoio.ContasDeTeste;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,12 +20,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * dono encerra as sessões. Sobe Tomcat de verdade porque o que está sob teste é a cadeia de
  * filtros inteira, não uma classe isolada.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // O limite por origem não é o objeto deste teste. Sem afrouxá-lo, o balde compartilhado
+    // pelos logins desta classe faria o resultado depender da ordem de execução, e a falha
+    // apareceria como 401 na consulta de saldo — longe da causa.
+    properties = "gefinx.limite-requisicoes.login.tentativas=100"
+)
 class RevogacaoDeSessaoTest {
 
     private static final int OK = 200;
     private static final int SEM_CONTEUDO = 204;
     private static final int NAO_AUTORIZADO = 401;
+
+    private static final String PREFIXO = "revogacao-";
 
     private final HttpClient clienteHttp = HttpClient.newHttpClient();
 
@@ -38,7 +47,7 @@ class RevogacaoDeSessaoTest {
      */
     @AfterEach
     void removerContasDoTeste() {
-        jdbcTemplate.update("DELETE FROM usuarios WHERE email LIKE 'revogacao-%'");
+        jdbcTemplate.update("DELETE FROM usuarios WHERE usuario LIKE ?", PREFIXO + "%");
     }
 
     @LocalServerPort
@@ -46,7 +55,7 @@ class RevogacaoDeSessaoTest {
 
     @Test
     void encerrarSessoesInvalidaOTokenQueEstavaEmUso() {
-        String token = registrarEObterToken("revogacao-" + System.nanoTime() + "@exemplo.com");
+        String token = criarContaEEntrar(nomeDeUsuario());
 
         assertThat(consultarSaldo(token)).isEqualTo(OK);
         assertThat(encerrarSessoes(token)).isEqualTo(SEM_CONTEUDO);
@@ -57,11 +66,11 @@ class RevogacaoDeSessaoTest {
 
     @Test
     void umLoginNovoVoltaAFuncionarDepoisDeEncerrar() {
-        String email = "revogacao-" + System.nanoTime() + "@exemplo.com";
-        String token = registrarEObterToken(email);
+        String usuario = nomeDeUsuario();
+        String token = criarContaEEntrar(usuario);
         encerrarSessoes(token);
 
-        assertThat(consultarSaldo(autenticar(email))).isEqualTo(OK);
+        assertThat(consultarSaldo(autenticar(usuario))).isEqualTo(OK);
     }
 
     @Test
@@ -71,15 +80,22 @@ class RevogacaoDeSessaoTest {
             .isEqualTo(NAO_AUTORIZADO);
     }
 
-    private String registrarEObterToken(String email) {
-        var resposta = enviar("POST", "/api/auth/registrar", null,
-            "{\"nome\":\"Fulano\",\"email\":\"" + email + "\",\"senha\":\"uma frase de senha\"}");
-        return extrairToken(resposta.body());
+    private String nomeDeUsuario() {
+        return PREFIXO + System.nanoTime();
     }
 
-    private String autenticar(String email) {
+    /**
+     * A conta nasce por INSERT, como nasce em produção: não há mais rota de cadastro. O
+     * token, esse continua vindo do login de verdade — é a cadeia inteira que está sob teste.
+     */
+    private String criarContaEEntrar(String usuario) {
+        ContasDeTeste.criar(jdbcTemplate, usuario);
+        return autenticar(usuario);
+    }
+
+    private String autenticar(String usuario) {
         var resposta = enviar("POST", "/api/auth/login", null,
-            "{\"email\":\"" + email + "\",\"senha\":\"uma frase de senha\"}");
+            "{\"usuario\":\"" + usuario + "\",\"senha\":\"" + ContasDeTeste.SENHA + "\"}");
         return extrairToken(resposta.body());
     }
 

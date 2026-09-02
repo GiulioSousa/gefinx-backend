@@ -8,7 +8,6 @@ import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoExceptio
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
-import com.gefinx.backend.usuarios.dominio.excecoes.EmailJaCadastradoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -46,7 +45,7 @@ public class ManipuladorGlobalDeExcecoes {
         return construirResposta(HttpStatus.BAD_REQUEST, excecao.getMessage());
     }
 
-    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, ContaEmUsoException.class, ContaDuplicadaException.class, EmailJaCadastradoException.class, TipoDaCategoriaEmUsoException.class})
+    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, ContaEmUsoException.class, ContaDuplicadaException.class, TipoDaCategoriaEmUsoException.class})
     public ResponseEntity<ErroResposta> tratarConflito(RuntimeException excecao) {
         return construirResposta(HttpStatus.CONFLICT, excecao.getMessage());
     }

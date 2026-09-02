@@ -67,7 +67,7 @@ gefinx:
     secret: ${JWT_SECRET}
     expiracao-minutos: ${JWT_EXPIRACAO_MINUTOS:1440}
   limite-requisicoes:
-    # Protege as rotas de autenticação contra força bruta, por endereço de origem.
+    # Protege o login contra força bruta, por endereço de origem.
     login:
       tentativas: 5
       janela: 1m
@@ -76,9 +76,6 @@ gefinx:
     login-por-conta:
       tentativas: 10
       janela: 15m
-    registro:
-      tentativas: 3
-      janela: 10m
 
 management:
   server:

@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 class AutenticacaoServiceTest {
 
-    private static final String EMAIL = "alvo@exemplo.com";
+    private static final String USUARIO = "alvo";
     private static final ResultadoDaTentativa PERMITIDA = new ResultadoDaTentativa(false, 0);
     private static final ResultadoDaTentativa BLOQUEADA = new ResultadoDaTentativa(true, 900);
 
@@ -44,43 +44,44 @@ class AutenticacaoServiceTest {
 
     @Test
     void recusaComQuatroCentosEVinteENoveQuandoAContaEstaBloqueada() {
-        when(controle.registrar(EMAIL)).thenReturn(BLOQUEADA);
+        when(controle.registrar(USUARIO)).thenReturn(BLOQUEADA);
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, "qualquer"))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, "qualquer"))
             .isInstanceOf(TentativasExcedidasException.class)
             .hasMessageContaining("900 segundos");
     }
 
     @Test
     void naoConsultaNemVerificaSenhaQuandoBloqueada() {
-        when(controle.registrar(EMAIL)).thenReturn(BLOQUEADA);
+        when(controle.registrar(USUARIO)).thenReturn(BLOQUEADA);
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, "qualquer"))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, "qualquer"))
             .isInstanceOf(TentativasExcedidasException.class);
 
         verifyNoInteractions(repositorio);
     }
 
     @Test
-    void contabilizaTentativaMesmoParaEmailInexistente() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.empty());
+    void contabilizaTentativaMesmoParaContaInexistente() {
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, "qualquer"))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, "qualquer"))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
-        // Contar só contas existentes faria do bloqueio um oráculo de enumeração.
-        verify(controle).registrar(EMAIL);
+        // Contar só contas existentes faria do bloqueio um oráculo de enumeração — e, sem
+        // cadastro, sondar o login é o único jeito que sobrou de tentar enumerá-las.
+        verify(controle).registrar(USUARIO);
         verify(controle, never()).liberar(anyString());
     }
 
     @Test
     void naoDevolveACotaQuandoASenhaEstaErrada() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.of(usuario()));
         when(codificador.matches("errada", "hash-real")).thenReturn(false);
 
-        assertThatThrownBy(() -> servico.autenticar(EMAIL, "errada"))
+        assertThatThrownBy(() -> servico.autenticar(USUARIO, "errada"))
             .isInstanceOf(CredenciaisInvalidasException.class);
 
         verify(controle, never()).liberar(anyString());
@@ -88,30 +89,30 @@ class AutenticacaoServiceTest {
 
     @Test
     void devolveACotaAposLoginBemSucedido() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.of(usuario()));
         when(codificador.matches("correta", "hash-real")).thenReturn(true);
 
-        assertThat(servico.autenticar(EMAIL, "correta").getEmail()).isEqualTo(EMAIL);
+        assertThat(servico.autenticar(USUARIO, "correta").getUsuario()).isEqualTo(USUARIO);
 
         // Sem isso, quem usa o sistema com frequência seria barrado pelo próprio uso.
-        verify(controle).liberar(EMAIL);
+        verify(controle).liberar(USUARIO);
     }
 
-
     @Test
-    void encontraAContaMesmoQuandoOEmailChegaComOutraCaixa() {
-        when(controle.registrar(EMAIL)).thenReturn(PERMITIDA);
-        when(repositorio.buscarPorEmail(EMAIL)).thenReturn(Optional.of(usuario()));
+    void encontraAContaMesmoQuandoONomeChegaComOutraCaixa() {
+        when(controle.registrar(USUARIO)).thenReturn(PERMITIDA);
+        when(repositorio.buscarPorUsuario(USUARIO)).thenReturn(Optional.of(usuario()));
         when(codificador.matches("correta", "hash-real")).thenReturn(true);
 
         // O banco guarda a forma canônica; sem normalizar aqui, quem digitasse com
         // maiúscula não encontraria a própria conta.
-        assertThat(servico.autenticar("  ALVO@Exemplo.COM ", "correta").getEmail()).isEqualTo(EMAIL);
+        assertThat(servico.autenticar("  ALVO ", "correta").getUsuario()).isEqualTo(USUARIO);
 
-        verify(controle).liberar(EMAIL);
+        verify(controle).liberar(USUARIO);
     }
+
     private Usuario usuario() {
-        return new Usuario(1L, "Alvo", EMAIL, "hash-real", LocalDateTime.now(), LocalDateTime.now().minusDays(1));
+        return new Usuario(1L, USUARIO, "hash-real", LocalDateTime.now(), LocalDateTime.now().minusDays(1));
     }
 }

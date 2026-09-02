@@ -24,29 +24,20 @@ import static org.assertj.core.api.Assertions.assertThat;
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     properties = {
         "gefinx.limite-requisicoes.login.tentativas=3",
-        "gefinx.limite-requisicoes.login.janela=5m",
-        "gefinx.limite-requisicoes.registro.tentativas=3",
-        "gefinx.limite-requisicoes.registro.janela=5m"
+        "gefinx.limite-requisicoes.login.janela=5m"
     }
 )
 class LimiteDeRequisicoesTest {
 
     private static final int NAO_AUTORIZADO = 401;
-    private static final int DADOS_INVALIDOS = 400;
     private static final int LIMITE_EXCEDIDO = 429;
 
     /** {@code %6C} é a letra {@code l}: o Spring MVC roteia isto para o login. */
     private static final String LOGIN_CODIFICADO = "/api/auth/%6Cogin";
     private static final String LOGIN = "/api/auth/login";
 
-    /** {@code %72} é a letra {@code r}. */
-    private static final String REGISTRO_CODIFICADO = "/api/auth/%72egistrar";
-    private static final String REGISTRO = "/api/auth/registrar";
-
     private static final String CREDENCIAIS_INEXISTENTES =
-        "{\"email\":\"ninguem@exemplo.com\",\"senha\":\"senha-qualquer\"}";
-    private static final String REGISTRO_INVALIDO =
-        "{\"nome\":\"\",\"email\":\"invalido\",\"senha\":\"1\"}";
+        "{\"usuario\":\"ninguem\",\"senha\":\"senha-qualquer\"}";
 
     private final HttpClient clienteHttp = HttpClient.newHttpClient();
 
@@ -67,20 +58,6 @@ class LimiteDeRequisicoesTest {
         // As três tentativas acima esgotaram um único balde, ainda que escritas de
         // duas formas diferentes.
         assertThat(postar(LOGIN_CODIFICADO, CREDENCIAIS_INEXISTENTES))
-            .as("o caminho codificado não pode escapar do limite já esgotado")
-            .isEqualTo(LIMITE_EXCEDIDO);
-    }
-
-    @Test
-    void aplicaOMesmoLimiteAoCaminhoCodificadoDoRegistro() {
-        assertThat(postar(REGISTRO_CODIFICADO, REGISTRO_INVALIDO))
-            .as("o caminho codificado precisa alcançar o registro para que o teste tenha valor")
-            .isEqualTo(DADOS_INVALIDOS);
-
-        assertThat(postar(REGISTRO, REGISTRO_INVALIDO)).isEqualTo(DADOS_INVALIDOS);
-        assertThat(postar(REGISTRO, REGISTRO_INVALIDO)).isEqualTo(DADOS_INVALIDOS);
-
-        assertThat(postar(REGISTRO_CODIFICADO, REGISTRO_INVALIDO))
             .as("o caminho codificado não pode escapar do limite já esgotado")
             .isEqualTo(LIMITE_EXCEDIDO);
     }
