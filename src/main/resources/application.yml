@@ -63,6 +63,11 @@ gefinx:
     # desenho de produção —, requisição de mesma origem não passa por CORS, e a lista
     # pode ficar vazia: `CORS_ORIGENS=` desliga o acesso entre origens por completo.
     origens: ${CORS_ORIGENS:http://localhost:5173}
+  planejamento:
+    # O fuso em que "hoje" é decidido para a meta diária. É o do calendário de quem lança
+    # as transações, e não o do servidor — que num VPS costuma estar em UTC, e poria o
+    # planejamento no dia seguinte das 21h à meia-noite.
+    fuso-horario: ${PLANEJAMENTO_FUSO_HORARIO:America/Sao_Paulo}
   jwt:
     secret: ${JWT_SECRET}
     expiracao-minutos: ${JWT_EXPIRACAO_MINUTOS:1440}

@@ -7,6 +7,7 @@ import com.gefinx.backend.financas.dominio.excecoes.CategoriaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
+import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.gefinx.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,8 +36,8 @@ public class ManipuladorGlobalDeExcecoes {
 
     private static final Logger log = LoggerFactory.getLogger(ManipuladorGlobalDeExcecoes.class);
 
-    @ExceptionHandler(RecursoNaoEncontradoException.class)
-    public ResponseEntity<ErroResposta> tratarRecursoNaoEncontrado(RecursoNaoEncontradoException excecao) {
+    @ExceptionHandler({RecursoNaoEncontradoException.class, RecursoNaoEncontradoNoPlanejamentoException.class})
+    public ResponseEntity<ErroResposta> tratarRecursoNaoEncontrado(RuntimeException excecao) {
         return construirResposta(HttpStatus.NOT_FOUND, excecao.getMessage());
     }
 

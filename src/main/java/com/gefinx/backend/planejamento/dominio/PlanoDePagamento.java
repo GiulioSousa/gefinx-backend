@@ -33,6 +33,7 @@ import java.util.List;
  * sobrar depois dela.
  */
 public record PlanoDePagamento(
+    LocalDate hoje,
     BigDecimal saldoDeOntem,
     BigDecimal saldoAtual,
     BigDecimal ganhoDeHoje,
@@ -97,7 +98,7 @@ public record PlanoDePagamento(
         BigDecimal restanteHoje = metaDiaria.subtract(ganhoDeHoje).max(BigDecimal.ZERO);
 
         return new PlanoDePagamento(
-            saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, restanteHoje, prazoDecisivo, List.copyOf(itens)
+            hoje, saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, restanteHoje, prazoDecisivo, List.copyOf(itens)
         );
     }
 

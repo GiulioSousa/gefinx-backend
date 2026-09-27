@@ -253,6 +253,10 @@ Base: `http://localhost:8080/api`
 | `PUT` `DELETE` | `/transacoes/{id}` | Bearer | `200` / `204` |
 | `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, totalTransferencias, saldo}` — consolidado; `?contaId=` restringe a uma conta e `?dataInicio=`/`?dataFim=` a um período |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
+| `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201` |
+| `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` |
+| `GET` | `/planejamento` | Bearer | o plano do dia: saldo de ontem e de agora, ganho de hoje, meta diária e, por despesa, o que falta e quanto ganhar por dia |
+| `GET` `PUT` | `/planejamento/contas` | Bearer | as contas, cada uma com `entraNoPlanejamento`; o `PUT` recebe `{contasDeFora: [ids]}` — a escolha inteira |
 
 Todo recurso é filtrado pelo usuário autenticado, extraído do token — **nunca** de parâmetro da
 requisição.
@@ -262,6 +266,13 @@ independentes entre si. Com período, os totais e o `saldo` descrevem só o que 
 o `saldo` passa a ser o resultado do período, e não o acumulado até a data. As duas rotas montam
 o recorte pelos mesmos predicados, então o total de um período é a soma do que a listagem desse
 período devolve.
+
+O planejamento compara as despesas planejadas com o saldo, sem o dinheiro das contas marcadas
+como fora dele. As despesas são ordenadas por prazo e consomem o saldo em sequência, e a meta
+diária é o que falta até cada prazo dividido pelos dias de trabalho até ele — de segunda a
+sábado, contando hoje e não o dia do prazo —, ficando com o maior. Ela sai do saldo do fim de
+ontem, e por isso não muda durante o dia. "Hoje" é decidido no fuso de
+`gefinx.planejamento.fuso-horario` (padrão `America/Sao_Paulo`), e não no do servidor.
 
 ### Formato de erro
 
