@@ -60,6 +60,7 @@ class PlanejamentoTest {
     private long banco;
     private long especie;
     private long categoriaReceita;
+    private long categoriaDespesa;
 
     @BeforeEach
     void prepararCenario() {
@@ -68,6 +69,8 @@ class PlanejamentoTest {
         especie = criarConta(token, "Em espécie");
         categoriaReceita = extrairId(enviar("POST", "/api/categorias", token,
             "{\"nome\":\"Trabalho\",\"tipo\":\"RECEITA\"}").body());
+        categoriaDespesa = extrairId(enviar("POST", "/api/categorias", token,
+            "{\"nome\":\"Moradia\",\"tipo\":\"DESPESA\"}").body());
 
         receber(banco, "1000.00", hoje.minusDays(10));
         receber(especie, "300.00", hoje.minusDays(10));
@@ -194,6 +197,79 @@ class PlanejamentoTest {
         assertThat(jdbcTemplate.queryForObject(
             "SELECT count(*) FROM contas_fora_do_planejamento WHERE conta_id = ?", Long.class, vazia
         )).isZero();
+    }
+
+    @Test
+    void pagarLancaADespesaETiraADoPlano() {
+        long despesa = criarDespesa("Aluguel", "300.00", hoje.plusDays(30));
+
+        HttpResponse<String> pagamento = pagar(despesa, banco, categoriaDespesa, "300.00");
+
+        assertThat(pagamento.statusCode()).isEqualTo(CRIADO);
+        long transacao = objectMapper.readTree(pagamento.body()).get("transacaoId").asLong();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT tipo FROM transacoes WHERE id = ? AND conta_id = ?", String.class, transacao, banco
+        )).isEqualTo("DESPESA");
+
+        JsonNode plano = obter("/api/planejamento");
+        assertThat(plano.get("itens")).isEmpty();
+        assertThat(plano.get("saldoAtual").decimalValue()).isEqualByComparingTo("1000.00");
+        assertThat(plano.get("ganhoDeHoje").decimalValue())
+            .as("pagar hoje uma despesa planejada não é perder dinheiro hoje")
+            .isEqualByComparingTo("0");
+    }
+
+    /** A transação é a prova do pagamento: sem ela, a despesa volta a ser pendente. */
+    @Test
+    void excluirATransacaoDePagamentoDevolveADespesaAoPlano() {
+        long despesa = criarDespesa("Aluguel", "300.00", hoje.plusDays(30));
+        long transacao = objectMapper.readTree(pagar(despesa, banco, categoriaDespesa, "300.00").body())
+            .get("transacaoId").asLong();
+
+        assertThat(enviar("DELETE", "/api/transacoes/" + transacao, token, null).statusCode()).isEqualTo(SEM_CONTEUDO);
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("id").asLong()).isEqualTo(despesa);
+    }
+
+    @Test
+    void pagarDuasVezesNaoLancaDuasTransacoes() {
+        long despesa = criarDespesa("Aluguel", "300.00", hoje.plusDays(30));
+        pagar(despesa, banco, categoriaDespesa, "300.00");
+
+        assertThat(pagar(despesa, banco, categoriaDespesa, "300.00").statusCode()).isEqualTo(NAO_ENCONTRADO);
+        assertThat(contarDespesasLancadas()).isEqualTo(1);
+    }
+
+    /**
+     * Recusado em finanças — conta de outro usuário, ou categoria de receita —, o pagamento
+     * não deixa nada pela metade: nem transação, nem despesa marcada.
+     */
+    @Test
+    void pagamentoRecusadoNaoFechaADespesa() {
+        long despesa = criarDespesa("Aluguel", "300.00", hoje.plusDays(30));
+        long contaAlheia = criarConta(criarUsuarioEObterToken(), "Alheia");
+
+        assertThat(pagar(despesa, contaAlheia, categoriaDespesa, "300.00").statusCode()).isEqualTo(NAO_ENCONTRADO);
+        assertThat(pagar(despesa, banco, categoriaReceita, "300.00").statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+
+        assertThat(contarDespesasLancadas()).isZero();
+        assertThat(obter("/api/planejamento").get("itens")).hasSize(1);
+    }
+
+    private HttpResponse<String> pagar(long despesa, long conta, long categoria, String valor) {
+        return enviar("POST", "/api/despesas-planejadas/" + despesa + "/pagamento", token,
+            "{\"descricao\":\"Pagamento\",\"valor\":" + valor + ",\"dataTransacao\":\"" + hoje
+                + "\",\"categoriaId\":" + categoria + ",\"contaId\":" + conta + "}");
+    }
+
+    private long contarDespesasLancadas() {
+        return jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM transacoes t JOIN usuarios u ON u.id = t.usuario_id"
+                + " WHERE u.usuario LIKE ? AND t.tipo = 'DESPESA'",
+            Long.class, PREFIXO + "%"
+        );
     }
 
     private boolean entra(JsonNode contas, long contaId) {

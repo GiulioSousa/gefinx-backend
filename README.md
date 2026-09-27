@@ -254,7 +254,8 @@ Base: `http://localhost:8080/api`
 | `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, totalTransferencias, saldo}` — consolidado; `?contaId=` restringe a uma conta e `?dataInicio=`/`?dataFim=` a um período |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
 | `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201` |
-| `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` |
+| `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` — só as pendentes |
+| `POST` | `/despesas-planejadas/{id}/pagamento` | Bearer | `201` + `{transacaoId}` — lança a despesa em finanças e tira a planejada do plano; excluir a transação a devolve |
 | `GET` | `/planejamento` | Bearer | o plano do dia: saldo de ontem e de agora, ganho de hoje, meta diária e, por despesa, o que falta e quanto ganhar por dia |
 | `GET` `PUT` | `/planejamento/contas` | Bearer | as contas, cada uma com `entraNoPlanejamento`; o `PUT` recebe `{contasDeFora: [ids]}` — a escolha inteira |
 

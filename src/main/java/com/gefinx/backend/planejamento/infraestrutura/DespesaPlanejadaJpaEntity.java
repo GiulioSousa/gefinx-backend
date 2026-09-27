@@ -32,24 +32,29 @@ public class DespesaPlanejadaJpaEntity {
     @Column(name = "usuario_id", nullable = false)
     private Long usuarioId;
 
+    @Column(name = "transacao_id")
+    private Long transacaoId;
+
     protected DespesaPlanejadaJpaEntity() {
     }
 
-    private DespesaPlanejadaJpaEntity(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId) {
+    private DespesaPlanejadaJpaEntity(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId, Long transacaoId) {
         this.id = id;
         this.descricao = descricao;
         this.valor = valor;
         this.prazo = prazo;
         this.usuarioId = usuarioId;
+        this.transacaoId = transacaoId;
     }
 
     public static DespesaPlanejadaJpaEntity apartirDoDominio(DespesaPlanejada despesa) {
         return new DespesaPlanejadaJpaEntity(
-            despesa.getId(), despesa.getDescricao(), despesa.getValor(), despesa.getPrazo(), despesa.getUsuarioId()
+            despesa.getId(), despesa.getDescricao(), despesa.getValor(), despesa.getPrazo(), despesa.getUsuarioId(),
+            despesa.getTransacaoId()
         );
     }
 
     public DespesaPlanejada paraDominio() {
-        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId);
+        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId);
     }
 }

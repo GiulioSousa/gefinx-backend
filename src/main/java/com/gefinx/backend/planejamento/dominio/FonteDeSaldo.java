@@ -6,8 +6,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * O que o planejamento pede ao contexto de finanças. É a única porta entre os dois: numa
- * extração para serviços, só quem a implementa muda — de chamada em processo para HTTP.
+ * O que o planejamento lê do contexto de finanças. Numa extração para serviços, só quem a
+ * implementa muda — de chamada em processo para HTTP.
  */
 public interface FonteDeSaldo {
 
@@ -19,4 +19,7 @@ public interface FonteDeSaldo {
     BigDecimal saldoAte(Long usuarioId, LocalDate dia, Set<Long> contasDeFora);
 
     List<ContaDoPlanejamento> listarContas(Long usuarioId);
+
+    /** As despesas com data em {@code dia} — de onde saem os pagamentos feitos hoje. */
+    List<DespesaLancada> despesasLancadasEm(Long usuarioId, LocalDate dia);
 }

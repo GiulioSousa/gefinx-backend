@@ -4,7 +4,9 @@ import com.gefinx.backend.compartilhado.seguranca.UsuarioAutenticado;
 import com.gefinx.backend.planejamento.aplicacao.DespesaPlanejadaService;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoDespesaPlanejada;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoPagamento;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDespesaPlanejada;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaPagamento;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -49,6 +51,15 @@ public class DespesaPlanejadaController {
         return RespostaDespesaPlanejada.apartirDoDominio(despesaPlanejadaService.atualizar(
             UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.prazo()
         ));
+    }
+
+    @PostMapping("/{id}/pagamento")
+    public ResponseEntity<RespostaPagamento> pagar(@PathVariable Long id, @Valid @RequestBody RequisicaoPagamento requisicao) {
+        Long transacaoId = despesaPlanejadaService.pagar(
+            UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.dataTransacao(),
+            requisicao.categoriaId(), requisicao.contaId()
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(new RespostaPagamento(transacaoId));
     }
 
     @DeleteMapping("/{id}")
