@@ -25,12 +25,18 @@ public interface RepositorioTransacao {
     /** Conta origem ou destino: as duas pontas prendem a conta contra exclusão. */
     boolean existePorConta(Long contaId);
 
-    BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo);
+    /*
+     * As somas do saldo recebem o período e o dono mesmo quando a conta já foi conferida: são
+     * o mesmo recorte da listagem, montado pelos mesmos predicados, de modo que o total de um
+     * período e a lista desse período não têm como discordar sobre quais linhas entram.
+     */
 
-    BigDecimal somarValorPorContaETipo(Long contaId, TipoTransacao tipo);
+    BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo, Periodo periodo);
 
-    /** Assinado: o que saiu da conta menos o que entrou nela por transferência. */
-    BigDecimal somarTransferenciasLiquidasDaConta(Long contaId);
+    BigDecimal somarValorPorContaETipo(Long usuarioId, Long contaId, TipoTransacao tipo, Periodo periodo);
+
+    /** Assinado: o que entrou na conta por transferência menos o que saiu dela. */
+    BigDecimal somarTransferenciasLiquidasDaConta(Long usuarioId, Long contaId, Periodo periodo);
 
     /** Saldo de cada conta do usuário numa consulta só, em vez de uma por conta. */
     List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId);

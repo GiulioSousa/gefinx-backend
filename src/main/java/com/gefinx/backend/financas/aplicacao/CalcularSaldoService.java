@@ -1,5 +1,6 @@
 package com.gefinx.backend.financas.aplicacao;
 
+import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
@@ -19,20 +20,34 @@ public class CalcularSaldoService {
         this.repositorioConta = repositorioConta;
     }
 
+    /** O saldo de sempre: a história inteira, sem recorte de datas. */
+    public ResultadoSaldo calcular(Long usuarioId) {
+        return calcular(usuarioId, Periodo.TODA_A_HISTORIA);
+    }
+
     /**
-     * Consolidado: todas as contas do usuário somadas.
+     * Consolidado: todas as contas do usuário somadas, dentro do período.
+     *
+     * <p>Com período, os quatro campos descrevem só o que aconteceu nele — o {@code saldo} é
+     * o resultado do período, e não o acumulado até a data. É a mesma conta de sempre,
+     * aplicada a menos linhas.
      *
      * <p>Transferência não entra, e por isso o total continua exatamente o mesmo de antes
      * da Etapa 20. Dinheiro que troca de conta não vira receita nem despesa, e como as
      * duas pontas pertencem ao mesmo usuário, o líquido aqui é zero — sem precisar de
-     * consulta para provar.
+     * consulta para provar. Vale para qualquer período: as duas pontas de uma transferência
+     * são uma linha só, com uma data só, e nunca caem uma dentro e outra fora do recorte.
      */
-    public ResultadoSaldo calcular(Long usuarioId) {
+    public ResultadoSaldo calcular(Long usuarioId, Periodo periodo) {
         return montar(
-            repositorioTransacao.somarValorPorUsuarioETipo(usuarioId, TipoTransacao.RECEITA),
-            repositorioTransacao.somarValorPorUsuarioETipo(usuarioId, TipoTransacao.DESPESA),
+            repositorioTransacao.somarValorPorUsuarioETipo(usuarioId, TipoTransacao.RECEITA, periodo),
+            repositorioTransacao.somarValorPorUsuarioETipo(usuarioId, TipoTransacao.DESPESA, periodo),
             BigDecimal.ZERO
         );
+    }
+
+    public ResultadoSaldo calcularPorConta(Long usuarioId, Long contaId) {
+        return calcularPorConta(usuarioId, contaId, Periodo.TODA_A_HISTORIA);
     }
 
     /**
@@ -43,14 +58,14 @@ public class CalcularSaldoService {
      * totais: o extrato de uma conta que recebeu R$ 200 de outra conta do mesmo dono não
      * pode chamar isso de receita — não houve renda nenhuma.
      */
-    public ResultadoSaldo calcularPorConta(Long usuarioId, Long contaId) {
+    public ResultadoSaldo calcularPorConta(Long usuarioId, Long contaId, Periodo periodo) {
         repositorioConta.buscarPorIdEUsuario(contaId, usuarioId)
             .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada"));
 
         return montar(
-            repositorioTransacao.somarValorPorContaETipo(contaId, TipoTransacao.RECEITA),
-            repositorioTransacao.somarValorPorContaETipo(contaId, TipoTransacao.DESPESA),
-            repositorioTransacao.somarTransferenciasLiquidasDaConta(contaId)
+            repositorioTransacao.somarValorPorContaETipo(usuarioId, contaId, TipoTransacao.RECEITA, periodo),
+            repositorioTransacao.somarValorPorContaETipo(usuarioId, contaId, TipoTransacao.DESPESA, periodo),
+            repositorioTransacao.somarTransferenciasLiquidasDaConta(usuarioId, contaId, periodo)
         );
     }
 

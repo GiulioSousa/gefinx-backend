@@ -251,11 +251,17 @@ Base: `http://localhost:8080/api`
 | `PUT` `DELETE` | `/categorias/{id}` | Bearer | `200` / `204` |
 | `GET` `POST` | `/transacoes` | Bearer | lista / `201` |
 | `PUT` `DELETE` | `/transacoes/{id}` | Bearer | `200` / `204` |
-| `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, saldo}` |
+| `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, totalTransferencias, saldo}` — consolidado; `?contaId=` restringe a uma conta e `?dataInicio=`/`?dataFim=` a um período |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
 
 Todo recurso é filtrado pelo usuário autenticado, extraído do token — **nunca** de parâmetro da
 requisição.
+
+As datas de `/saldo` seguem o contrato das de `/transacoes`: inclusivas, opcionais e
+independentes entre si. Com período, os totais e o `saldo` descrevem só o que aconteceu nele —
+o `saldo` passa a ser o resultado do período, e não o acumulado até a data. As duas rotas montam
+o recorte pelos mesmos predicados, então o total de um período é a soma do que a listagem desse
+período devolve.
 
 ### Formato de erro
 

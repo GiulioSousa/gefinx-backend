@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,28 +27,6 @@ public interface TransacaoSpringDataRepository extends JpaRepository<TransacaoJp
         WHERE t.contaId = :contaId OR t.contaDestinoId = :contaId
         """)
     boolean existePorContaOrigemOuDestino(@Param("contaId") Long contaId);
-
-    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoJpaEntity t WHERE t.usuarioId = :usuarioId AND t.tipo = :tipo")
-    BigDecimal somarValorPorUsuarioETipo(@Param("usuarioId") Long usuarioId, @Param("tipo") TipoTransacao tipo);
-
-    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoJpaEntity t WHERE t.contaId = :contaId AND t.tipo = :tipo")
-    BigDecimal somarValorPorContaETipo(@Param("contaId") Long contaId, @Param("tipo") TipoTransacao tipo);
-
-    /**
-     * Assinado: entra positivo no destino, sai negativo na origem. O {@code WHERE} garante
-     * que a conta é uma das duas pontas, e a CHECK da V8 garante que nunca é as duas ao
-     * mesmo tempo — então o {@code CASE} cobre todos os casos possíveis.
-     */
-    @Query("""
-        SELECT COALESCE(SUM(CASE WHEN t.contaDestinoId = :contaId THEN t.valor ELSE -t.valor END), 0)
-        FROM TransacaoJpaEntity t
-        WHERE t.tipo = :transferencia
-          AND (t.contaId = :contaId OR t.contaDestinoId = :contaId)
-        """)
-    BigDecimal somarTransferenciasLiquidasDaConta(
-        @Param("contaId") Long contaId,
-        @Param("transferencia") TipoTransacao transferencia
-    );
 
     /**
      * Uma consulta agrupada em vez de três por conta.

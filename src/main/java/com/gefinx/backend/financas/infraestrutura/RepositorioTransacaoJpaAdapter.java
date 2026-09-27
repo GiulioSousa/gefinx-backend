@@ -1,10 +1,16 @@
 package com.gefinx.backend.financas.infraestrutura;
 import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
 import com.gefinx.backend.financas.dominio.Pagina;
+import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.SaldoDaConta;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Expression;
+import jakarta.persistence.criteria.Root;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -15,8 +21,10 @@ import java.util.Optional;
 @Repository
 public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     private final TransacaoSpringDataRepository springDataRepository;
-    public RepositorioTransacaoJpaAdapter(TransacaoSpringDataRepository springDataRepository) {
+    private final EntityManager entityManager;
+    public RepositorioTransacaoJpaAdapter(TransacaoSpringDataRepository springDataRepository, EntityManager entityManager) {
         this.springDataRepository = springDataRepository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -75,18 +83,66 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     }
 
     @Override
-    public BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo) {
-        return springDataRepository.somarValorPorUsuarioETipo(usuarioId, tipo);
+    public BigDecimal somarValorPorUsuarioETipo(Long usuarioId, TipoTransacao tipo, Periodo periodo) {
+        return somar(usuarioId, recorte(periodo, tipo, null), (raiz, construtor) -> raiz.get("valor"));
     }
 
+    /**
+     * O recorte por conta casa as duas pontas, como na listagem. Para receita e despesa isso
+     * é o mesmo que olhar só {@code conta_id}: a CHECK da V8 garante que elas nunca têm
+     * conta de destino.
+     */
     @Override
-    public BigDecimal somarValorPorContaETipo(Long contaId, TipoTransacao tipo) {
-        return springDataRepository.somarValorPorContaETipo(contaId, tipo);
+    public BigDecimal somarValorPorContaETipo(Long usuarioId, Long contaId, TipoTransacao tipo, Periodo periodo) {
+        return somar(usuarioId, recorte(periodo, tipo, contaId), (raiz, construtor) -> raiz.get("valor"));
     }
 
+    /**
+     * Entra positivo no destino, sai negativo na origem. O recorte garante que a conta é uma
+     * das duas pontas, e a CHECK da V8 garante que nunca é as duas ao mesmo tempo — então o
+     * {@code CASE} cobre todos os casos possíveis.
+     */
     @Override
-    public BigDecimal somarTransferenciasLiquidasDaConta(Long contaId) {
-        return springDataRepository.somarTransferenciasLiquidasDaConta(contaId, TipoTransacao.TRANSFERENCIA);
+    public BigDecimal somarTransferenciasLiquidasDaConta(Long usuarioId, Long contaId, Periodo periodo) {
+        return somar(
+            usuarioId,
+            recorte(periodo, TipoTransacao.TRANSFERENCIA, contaId),
+            (raiz, construtor) -> construtor.<BigDecimal>selectCase()
+                .when(construtor.equal(raiz.get("contaDestinoId"), contaId), raiz.<BigDecimal>get("valor"))
+                .otherwise(construtor.neg(raiz.<BigDecimal>get("valor")))
+        );
+    }
+
+    private static FiltroDeTransacoes recorte(Periodo periodo, TipoTransacao tipo, Long contaId) {
+        return new FiltroDeTransacoes(periodo.inicio(), periodo.fim(), tipo, contaId, null);
+    }
+
+    /**
+     * A soma sai da mesma {@link EspecificacoesDeTransacao} que monta a listagem, e não de um
+     * JPQL próprio. Até aqui eram três {@code @Query} fixas, e bastavam porque o saldo era
+     * sempre a história inteira; com o período opcional nas duas pontas, o JPQL precisaria do
+     * {@code :x IS NULL OR ...} que a Etapa 21 viu quebrar no PostgreSQL e tirar a data do
+     * índice. Montada assim, cada soma leva só os predicados pedidos — e o total de um período
+     * é, por construção, o das linhas que a listagem desse período mostra.
+     */
+    private BigDecimal somar(Long usuarioId, FiltroDeTransacoes filtro, Parcela parcela) {
+        CriteriaBuilder construtor = entityManager.getCriteriaBuilder();
+        CriteriaQuery<BigDecimal> consulta = construtor.createQuery(BigDecimal.class);
+        Root<TransacaoJpaEntity> raiz = consulta.from(TransacaoJpaEntity.class);
+
+        consulta.select(construtor.sum(parcela.de(raiz, construtor)))
+            .where(EspecificacoesDeTransacao.doUsuarioComFiltro(usuarioId, filtro).toPredicate(raiz, consulta, construtor));
+
+        // SUM de nenhuma linha é nulo em SQL. Zero é a resposta certa para um período sem
+        // lançamentos, e era o que as consultas anteriores entregavam pelo COALESCE.
+        BigDecimal soma = entityManager.createQuery(consulta).getSingleResult();
+        return soma == null ? BigDecimal.ZERO : soma;
+    }
+
+    /** O que cada linha do recorte contribui para a soma. */
+    @FunctionalInterface
+    private interface Parcela {
+        Expression<BigDecimal> de(Root<TransacaoJpaEntity> raiz, CriteriaBuilder construtor);
     }
 
     @Override

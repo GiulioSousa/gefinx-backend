@@ -1,6 +1,7 @@
 package com.gefinx.backend.financas.aplicacao;
 
 import com.gefinx.backend.financas.dominio.Conta;
+import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.RepositorioConta;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
@@ -9,11 +10,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,6 +26,8 @@ class CalcularSaldoServiceTest {
 
     private static final Long USUARIO = 1L;
     private static final Long CONTA = 20L;
+    private static final Periodo TUDO = Periodo.TODA_A_HISTORIA;
+    private static final Periodo SETEMBRO = new Periodo(LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
 
     private RepositorioTransacao repositorioTransacao;
     private RepositorioConta repositorioConta;
@@ -37,9 +42,9 @@ class CalcularSaldoServiceTest {
 
     @Test
     void oConsolidadoSomaTodasAsContasDoUsuario() {
-        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.RECEITA))
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.RECEITA, TUDO))
             .thenReturn(new BigDecimal("5000.00"));
-        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.DESPESA))
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.DESPESA, TUDO))
             .thenReturn(new BigDecimal("571.25"));
 
         ResultadoSaldo resultado = servico.calcular(USUARIO);
@@ -52,9 +57,9 @@ class CalcularSaldoServiceTest {
     @Test
     void aLeituraPorContaSomaSoAquelaConta() {
         contaDoUsuario();
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.RECEITA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.RECEITA, TUDO))
             .thenReturn(new BigDecimal("340.00"));
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.DESPESA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.DESPESA, TUDO))
             .thenReturn(new BigDecimal("5.54"));
 
         assertThat(servico.calcularPorConta(USUARIO, CONTA).saldo()).isEqualByComparingTo("334.46");
@@ -80,18 +85,19 @@ class CalcularSaldoServiceTest {
         assertThatThrownBy(() -> servico.calcularPorConta(USUARIO, CONTA))
             .isInstanceOf(RecursoNaoEncontradoException.class);
 
-        verify(repositorioTransacao, never()).somarValorPorContaETipo(any(), any());
+        verify(repositorioTransacao, never()).somarValorPorContaETipo(any(), any(), any(), any());
     }
 
     /**
      * O zero de transferências é o padrão porque a maioria dos casos não tem nenhuma; os
      * testes que se importam com elas re-especificam o valor. Sem este stub o mock
-     * devolveria nulo, coisa que a consulta real nunca faz — ela vem com {@code COALESCE}.
+     * devolveria nulo, coisa que a soma real nunca faz — o adaptador troca o nulo do
+     * {@code SUM} sem linhas por zero.
      */
     private void contaDoUsuario() {
         when(repositorioConta.buscarPorIdEUsuario(CONTA, USUARIO))
             .thenReturn(Optional.of(new Conta(CONTA, "Conta principal", USUARIO)));
-        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(CONTA)).thenReturn(BigDecimal.ZERO);
+        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(USUARIO, CONTA, TUDO)).thenReturn(BigDecimal.ZERO);
     }
 
     /**
@@ -101,11 +107,11 @@ class CalcularSaldoServiceTest {
     @Test
     void aTransferenciaRecebidaNaoContaComoReceita() {
         contaDoUsuario();
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.RECEITA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.RECEITA, TUDO))
             .thenReturn(BigDecimal.ZERO);
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.DESPESA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.DESPESA, TUDO))
             .thenReturn(BigDecimal.ZERO);
-        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(CONTA))
+        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(USUARIO, CONTA, TUDO))
             .thenReturn(new BigDecimal("200.00"));
 
         ResultadoSaldo resultado = servico.calcularPorConta(USUARIO, CONTA);
@@ -118,11 +124,11 @@ class CalcularSaldoServiceTest {
     @Test
     void aTransferenciaEnviadaEntraNegativaNaContaDeOrigem() {
         contaDoUsuario();
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.RECEITA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.RECEITA, TUDO))
             .thenReturn(new BigDecimal("1000.00"));
-        when(repositorioTransacao.somarValorPorContaETipo(CONTA, TipoTransacao.DESPESA))
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.DESPESA, TUDO))
             .thenReturn(BigDecimal.ZERO);
-        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(CONTA))
+        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(USUARIO, CONTA, TUDO))
             .thenReturn(new BigDecimal("-200.00"));
 
         ResultadoSaldo resultado = servico.calcularPorConta(USUARIO, CONTA);
@@ -138,15 +144,50 @@ class CalcularSaldoServiceTest {
      */
     @Test
     void oConsolidadoIgnoraTransferenciasSemConsultarORepositorio() {
-        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.RECEITA))
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.RECEITA, TUDO))
             .thenReturn(new BigDecimal("5000.00"));
-        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.DESPESA))
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.DESPESA, TUDO))
             .thenReturn(new BigDecimal("571.25"));
 
         ResultadoSaldo resultado = servico.calcular(USUARIO);
 
         assertThat(resultado.totalTransferencias()).isEqualByComparingTo("0");
         assertThat(resultado.saldo()).isEqualByComparingTo("4428.75");
-        verify(repositorioTransacao, never()).somarTransferenciasLiquidasDaConta(any());
+        verify(repositorioTransacao, never()).somarTransferenciasLiquidasDaConta(any(), any(), any());
+    }
+
+    /**
+     * Com período, o saldo é o resultado do período, e não o acumulado: é o que o painel lê
+     * ao lado do saldo de sempre, e os dois números não podem se confundir.
+     */
+    @Test
+    void oPeriodoChegaAsDuasSomasEOSaldoEOResultadoDele() {
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.RECEITA, SETEMBRO))
+            .thenReturn(new BigDecimal("3000.00"));
+        when(repositorioTransacao.somarValorPorUsuarioETipo(USUARIO, TipoTransacao.DESPESA, SETEMBRO))
+            .thenReturn(new BigDecimal("3250.40"));
+
+        ResultadoSaldo resultado = servico.calcular(USUARIO, SETEMBRO);
+
+        assertThat(resultado.totalReceitas()).isEqualByComparingTo("3000.00");
+        assertThat(resultado.totalDespesas()).isEqualByComparingTo("3250.40");
+        assertThat(resultado.saldo())
+            .as("gastar mais do que entrou no mês é resultado negativo, mesmo com saldo positivo na conta")
+            .isEqualByComparingTo("-250.40");
+        verify(repositorioTransacao, never()).somarValorPorUsuarioETipo(any(), any(), eq(TUDO));
+    }
+
+    @Test
+    void oPeriodoTambemRecortaALeituraPorConta() {
+        when(repositorioConta.buscarPorIdEUsuario(CONTA, USUARIO))
+            .thenReturn(Optional.of(new Conta(CONTA, "Conta principal", USUARIO)));
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.RECEITA, SETEMBRO))
+            .thenReturn(new BigDecimal("100.00"));
+        when(repositorioTransacao.somarValorPorContaETipo(USUARIO, CONTA, TipoTransacao.DESPESA, SETEMBRO))
+            .thenReturn(new BigDecimal("30.00"));
+        when(repositorioTransacao.somarTransferenciasLiquidasDaConta(USUARIO, CONTA, SETEMBRO))
+            .thenReturn(new BigDecimal("-50.00"));
+
+        assertThat(servico.calcularPorConta(USUARIO, CONTA, SETEMBRO).saldo()).isEqualByComparingTo("20.00");
     }
 }
