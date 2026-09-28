@@ -10,11 +10,15 @@ import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
+import com.gefinx.backend.financas.dominio.excecoes.SaldoNegativoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 public class TransacaoService {
@@ -37,6 +41,7 @@ public class TransacaoService {
         return repositorioTransacao.listarPorUsuario(usuarioId, filtro, pagina, tamanho);
     }
 
+    @Transactional
     public TransacaoComNomes criar(
         Long usuarioId,
         String descricao,
@@ -48,14 +53,19 @@ public class TransacaoService {
         LocalDate dataTransacao
     ) {
         Referencias referencias = validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+        Set<Long> contas = contasEnvolvidas(contaId, contaDestinoId);
+        repositorioConta.travar(contas);
 
         Transacao transacao = tipo == TipoTransacao.TRANSFERENCIA
             ? Transacao.novaTransferencia(descricao, valor, dataTransacao, contaId, contaDestinoId, usuarioId)
             : Transacao.nova(descricao, valor, tipo, dataTransacao, categoriaId, contaId, usuarioId);
 
-        return comNomes(repositorioTransacao.salvar(transacao), referencias);
+        Transacao salva = repositorioTransacao.salvar(transacao);
+        conferirSaldos(usuarioId, contas);
+        return comNomes(salva, referencias);
     }
 
+    @Transactional
     public TransacaoComNomes atualizar(
         Long usuarioId,
         Long id,
@@ -69,6 +79,12 @@ public class TransacaoService {
     ) {
         Transacao existente = buscarOuLancar(usuarioId, id);
         Referencias referencias = validarReferencias(usuarioId, tipo, categoriaId, contaId, contaDestinoId);
+        // As de antes e as de depois: trocar a conta, ou o destino de uma transferência, tira
+        // dinheiro de onde ele estava, e a conta que perde é justamente a que pode estourar.
+        Set<Long> contas = contasEnvolvidas(
+            existente.getContaId(), existente.getContaDestinoId(), contaId, contaDestinoId
+        );
+        repositorioConta.travar(contas);
 
         boolean ehTransferencia = tipo == TipoTransacao.TRANSFERENCIA;
         // Zerar o campo do outro caso, em vez de repassar o que veio, é o que garante que
@@ -88,12 +104,52 @@ public class TransacaoService {
             existente.getCriadoEm()
         );
 
-        return comNomes(repositorioTransacao.salvar(atualizada), referencias);
+        Transacao salva = repositorioTransacao.salvar(atualizada);
+        conferirSaldos(usuarioId, contas);
+        return comNomes(salva, referencias);
     }
 
+    /** Excluir uma receita, ou uma transferência recebida, também tira dinheiro da conta. */
+    @Transactional
     public void excluir(Long usuarioId, Long id) {
-        buscarOuLancar(usuarioId, id);
+        Transacao existente = buscarOuLancar(usuarioId, id);
+        Set<Long> contas = contasEnvolvidas(existente.getContaId(), existente.getContaDestinoId());
+        repositorioConta.travar(contas);
+
         repositorioTransacao.excluir(id);
+        conferirSaldos(usuarioId, contas);
+    }
+
+    /**
+     * <b>Nenhuma conta pode ter saldo negativo em dia algum da sua história</b> — regra do
+     * dono do projeto (Etapa 26). Vale o saldo no fim de cada dia, e para todos os dias, não
+     * só para hoje: uma despesa lançada com data antiga é recusada se a conta, naquele dia,
+     * não tinha o dinheiro, ainda que tenha hoje. O consolidado não precisa de conferência
+     * própria — é a soma das contas, e soma de valores nunca negativos não fica negativa.
+     *
+     * <p>Confere depois de gravar, e não antes, por simulação: o banco já sabe somar o que a
+     * transação mudou, e refazer essa conta em memória para cada combinação de conta, data e
+     * tipo seria uma segunda implementação do saldo — que poderia discordar da primeira. A
+     * recusa é uma exceção dentro da transação, que desfaz a gravação.
+     */
+    private void conferirSaldos(Long usuarioId, Set<Long> contaIds) {
+        for (Long contaId : contaIds) {
+            repositorioTransacao.primeiroDiaNegativo(contaId).ifPresent(estouro -> {
+                String nome = validarConta(usuarioId, contaId).getNome();
+                throw new SaldoNegativoException(nome, estouro.dia(), estouro.saldo());
+            });
+        }
+    }
+
+    /** Sem nulos e em ordem: a ordem é a das travas, e a das mensagens de recusa. */
+    private static Set<Long> contasEnvolvidas(Long... contaIds) {
+        Set<Long> contas = new TreeSet<>();
+        for (Long contaId : contaIds) {
+            if (contaId != null) {
+                contas.add(contaId);
+            }
+        }
+        return contas;
     }
 
     /**

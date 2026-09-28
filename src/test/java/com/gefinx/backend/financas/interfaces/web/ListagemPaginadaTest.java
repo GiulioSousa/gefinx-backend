@@ -70,6 +70,14 @@ class ListagemPaginadaTest {
             "{\"nome\":\"Destino\",\"saldoInicial\":0}").body());
         categoriaDespesa = criarCategoria("Mercado", "DESPESA");
 
+        // Antes de tudo, o dinheiro que as despesas gastam: desde a Etapa 26 nenhuma conta pode
+        // ficar negativa em dia algum, e sem ele a primeira despesa já seria recusada.
+        HttpResponse<String> aporte = enviar("POST", "/api/transacoes", token,
+            "{\"descricao\":\"Aporte\",\"valor\":100.00,\"tipo\":\"RECEITA\",\"categoriaId\":"
+                + criarCategoria("Trabalho", "RECEITA") + ",\"contaId\":" + contaOrigem
+                + ",\"dataTransacao\":\"2025-12-31\"}");
+        assertThat(aporte.statusCode()).isEqualTo(CRIADO);
+
         lancarDespesa("Mais antiga", "2026-01-10");
         lancarDespesa("Do meio", "2026-02-20");
         // Mesma data da anterior, de propósito: é o único par que exercita o desempate por
@@ -88,7 +96,7 @@ class ListagemPaginadaTest {
     @Test
     void listaVemDaMaisRecenteParaAMaisAntiga() {
         assertThat(descricoesDe("/api/transacoes"))
-            .containsExactly("Mais recente", "Transferida", "Do mesmo dia", "Do meio", "Mais antiga");
+            .containsExactly("Mais recente", "Transferida", "Do mesmo dia", "Do meio", "Mais antiga", "Aporte");
     }
 
     @Test
@@ -99,7 +107,7 @@ class ListagemPaginadaTest {
             .containsExactly("Mais recente", "Transferida");
         assertThat(numeroEm(primeira, "totalItens"))
             .as("o total descreve o histórico inteiro, não a fatia devolvida")
-            .isEqualTo(5);
+            .isEqualTo(6);
         assertThat(numeroEm(primeira, "totalPaginas")).isEqualTo(3);
     }
 
@@ -116,7 +124,7 @@ class ListagemPaginadaTest {
 
         assertThat(resposta.statusCode()).isEqualTo(OK);
         assertThat(descricoesDe("/api/transacoes?pagina=99&tamanho=2")).isEmpty();
-        assertThat(numeroEm(resposta.body(), "totalItens")).isEqualTo(5);
+        assertThat(numeroEm(resposta.body(), "totalItens")).isEqualTo(6);
     }
 
     /**

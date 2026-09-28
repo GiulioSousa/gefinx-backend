@@ -40,4 +40,11 @@ public interface RepositorioTransacao {
 
     /** Saldo de cada conta do usuário numa consulta só, em vez de uma por conta. */
     List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId);
+
+    /**
+     * O primeiro dia em que o saldo da conta, acumulado desde o começo, fica abaixo de zero —
+     * ou vazio, se isso não acontece em dia algum. Conta o que ainda não foi enviado ao banco
+     * na transação corrente: é chamado logo depois de gravar, para conferir o efeito.
+     */
+    Optional<SaldoNoDia> primeiroDiaNegativo(Long contaId);
 }

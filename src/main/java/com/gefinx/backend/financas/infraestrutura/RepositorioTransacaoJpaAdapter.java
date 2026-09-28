@@ -4,6 +4,7 @@ import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
 import com.gefinx.backend.financas.dominio.SaldoDaConta;
+import com.gefinx.backend.financas.dominio.SaldoNoDia;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
 import jakarta.persistence.EntityManager;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 @Repository
@@ -150,5 +152,43 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
         return springDataRepository.resumirSaldoPorConta(
             usuarioId, TipoTransacao.RECEITA, TipoTransacao.DESPESA, TipoTransacao.TRANSFERENCIA
         );
+    }
+
+    /**
+     * SQL nativo, por causa da soma acumulada por janela ({@code SUM ... OVER}). Primeiro o
+     * movimento líquido de cada dia, depois o acumulado dia a dia: vale o saldo no fim do
+     * dia, porque a transação tem data e não hora — receber e pagar no mesmo dia não pode ser
+     * recusado por uma ordem entre os dois que ninguém registrou.
+     *
+     * <p>O {@code flush} manda antes o que a transação corrente gravou ou apagou e ainda
+     * estava só em memória: a pergunta é justamente sobre o efeito dessas mudanças.
+     */
+    @Override
+    public Optional<SaldoNoDia> primeiroDiaNegativo(Long contaId) {
+        entityManager.flush();
+        List<?> linhas = entityManager.createNativeQuery("""
+            SELECT dia, saldo FROM (
+                SELECT dia, SUM(movimento) OVER (ORDER BY dia) AS saldo FROM (
+                    SELECT data_transacao AS dia,
+                           SUM(CASE WHEN conta_destino_id = :conta THEN valor
+                                    WHEN tipo = 'RECEITA' THEN valor
+                                    ELSE -valor END) AS movimento
+                      FROM transacoes
+                     WHERE conta_id = :conta OR conta_destino_id = :conta
+                     GROUP BY data_transacao
+                ) por_dia
+            ) acumulado
+             WHERE saldo < 0
+             ORDER BY dia
+             LIMIT 1
+            """)
+            .setParameter("conta", contaId)
+            .getResultList();
+
+        return linhas.stream().findFirst().map(linha -> {
+            Object[] colunas = (Object[]) linha;
+            LocalDate dia = colunas[0] instanceof java.sql.Date data ? data.toLocalDate() : (LocalDate) colunas[0];
+            return new SaldoNoDia(dia, (BigDecimal) colunas[1]);
+        });
     }
 }

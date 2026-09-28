@@ -4,6 +4,7 @@ import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.RepositorioConta;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,5 +42,12 @@ public class RepositorioContaJpaAdapter implements RepositorioConta {
     @Override
     public boolean existePorNomeEUsuario(String nome, Long usuarioId) {
         return springDataRepository.existsByNomeIgnoreCaseAndUsuarioId(nome, usuarioId);
+    }
+
+    @Override
+    public void travar(Collection<Long> contaIds) {
+        if (!contaIds.isEmpty()) {
+            springDataRepository.findByIdInOrderByIdAsc(contaIds);
+        }
     }
 }
