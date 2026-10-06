@@ -258,6 +258,76 @@ class PlanejamentoTest {
         assertThat(obter("/api/planejamento").get("itens")).hasSize(1);
     }
 
+    /** O histórico mostra os dois valores, e a transação dá conta, categoria e data. */
+    @Test
+    void aPagaVaiParaOHistoricoComOPlanejadoEOPago() {
+        long paga = criarDespesa("Aluguel", "300.00", hoje.minusDays(1));
+        criarDespesa("Luz", "80.00", hoje.plusDays(5));
+        long transacao = objectMapper.readTree(pagar(paga, banco, categoriaDespesa, "280.00").body())
+            .get("transacaoId").asLong();
+
+        JsonNode historico = obter("/api/despesas-planejadas/pagas");
+
+        assertThat(historico.get("totalItens").asLong()).isEqualTo(1);
+        JsonNode item = historico.get("itens").get(0);
+        assertThat(item.get("id").asLong()).isEqualTo(paga);
+        assertThat(item.get("descricao").asString()).isEqualTo("Aluguel");
+        assertThat(item.get("valorPlanejado").decimalValue()).isEqualByComparingTo("300.00");
+        assertThat(item.get("valorPago").decimalValue()).isEqualByComparingTo("280.00");
+        assertThat(item.get("dataPagamento").asString()).isEqualTo(hoje.toString());
+        assertThat(item.get("transacaoId").asLong()).isEqualTo(transacao);
+        assertThat(item.get("conta").asString()).isEqualTo("Banco");
+        assertThat(item.get("categoria").asString()).isEqualTo("Moradia");
+        assertThat(item.get("pagaComAtraso").asBoolean()).as("o prazo era ontem").isTrue();
+    }
+
+    @Test
+    void oHistoricoVemDoPrazoMaisRecenteEPaginado() {
+        for (int dias : new int[] {10, 30, 20}) {
+            long despesa = criarDespesa("Prazo em " + dias, "100.00", hoje.plusDays(dias));
+            pagar(despesa, banco, categoriaDespesa, "100.00");
+        }
+
+        JsonNode primeira = obter("/api/despesas-planejadas/pagas?tamanho=2");
+        assertThat(primeira.get("totalItens").asLong()).isEqualTo(3);
+        assertThat(primeira.get("totalPaginas").asInt()).isEqualTo(2);
+        assertThat(primeira.get("itens")).extracting(item -> item.get("descricao").asString())
+            .containsExactly("Prazo em 30", "Prazo em 20");
+        assertThat(primeira.get("itens").get(0).get("pagaComAtraso").asBoolean())
+            .as("pago antes do prazo").isFalse();
+
+        JsonNode segunda = obter("/api/despesas-planejadas/pagas?tamanho=2&pagina=1");
+        assertThat(segunda.get("itens")).extracting(item -> item.get("descricao").asString())
+            .containsExactly("Prazo em 10");
+    }
+
+    @Test
+    void oHistoricoDeOutroUsuarioNaoEAlcancado() {
+        pagar(criarDespesa("Aluguel", "300.00", hoje.plusDays(30)), banco, categoriaDespesa, "300.00");
+
+        assertThat(obter("/api/despesas-planejadas/pagas", criarUsuarioEObterToken()).get("itens")).isEmpty();
+    }
+
+    /** Desfazer o pagamento tira a despesa do histórico e a devolve ao plano: ela nunca está nos dois. */
+    @Test
+    void excluirATransacaoTiraADespesaDoHistorico() {
+        long despesa = criarDespesa("Aluguel", "300.00", hoje.plusDays(30));
+        long transacao = objectMapper.readTree(pagar(despesa, banco, categoriaDespesa, "300.00").body())
+            .get("transacaoId").asLong();
+
+        enviar("DELETE", "/api/transacoes/" + transacao, token, null);
+
+        assertThat(obter("/api/despesas-planejadas/pagas").get("itens")).isEmpty();
+    }
+
+    @Test
+    void recusaTamanhoDePaginaForaDoLimite() {
+        assertThat(enviar("GET", "/api/despesas-planejadas/pagas?tamanho=0", token, null).statusCode())
+            .isEqualTo(REQUISICAO_INVALIDA);
+        assertThat(enviar("GET", "/api/despesas-planejadas/pagas?tamanho=101", token, null).statusCode())
+            .isEqualTo(REQUISICAO_INVALIDA);
+    }
+
     private HttpResponse<String> pagar(long despesa, long conta, long categoria, String valor) {
         return enviar("POST", "/api/despesas-planejadas/" + despesa + "/pagamento", token,
             "{\"descricao\":\"Pagamento\",\"valor\":" + valor + ",\"dataTransacao\":\"" + hoje

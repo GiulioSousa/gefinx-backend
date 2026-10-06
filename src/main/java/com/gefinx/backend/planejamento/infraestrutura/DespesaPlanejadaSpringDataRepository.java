@@ -1,5 +1,7 @@
 package com.gefinx.backend.planejamento.infraestrutura;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -12,6 +14,8 @@ public interface DespesaPlanejadaSpringDataRepository extends JpaRepository<Desp
     List<DespesaPlanejadaJpaEntity> findByUsuarioIdAndTransacaoIdIsNullOrderByPrazoAscIdAsc(Long usuarioId);
 
     Optional<DespesaPlanejadaJpaEntity> findByIdAndUsuarioIdAndTransacaoIdIsNull(Long id, Long usuarioId);
+
+    Page<DespesaPlanejadaJpaEntity> findByUsuarioIdAndTransacaoIdIsNotNull(Long usuarioId, Pageable paginacao);
 
     @Query("""
         SELECT d.transacaoId FROM DespesaPlanejadaJpaEntity d

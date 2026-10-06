@@ -1,8 +1,11 @@
 package com.gefinx.backend.planejamento.infraestrutura;
 
 import com.gefinx.backend.financas.aplicacao.CalcularSaldoService;
+import com.gefinx.backend.financas.aplicacao.CategoriaService;
 import com.gefinx.backend.financas.aplicacao.ContaService;
 import com.gefinx.backend.financas.aplicacao.TransacaoService;
+import com.gefinx.backend.financas.dominio.Categoria;
+import com.gefinx.backend.financas.dominio.Conta;
 import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
 import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.Periodo;
@@ -11,13 +14,17 @@ import com.gefinx.backend.financas.dominio.Transacao;
 import com.gefinx.backend.planejamento.dominio.ContaDoPlanejamento;
 import com.gefinx.backend.planejamento.dominio.DespesaLancada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
+import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A ponte de leitura com finanças. Ela e {@link RegistroDePagamentoViaFinancas}, a de escrita,
@@ -33,15 +40,18 @@ public class FonteDeSaldoViaFinancas implements FonteDeSaldo {
 
     private final CalcularSaldoService calcularSaldoService;
     private final ContaService contaService;
+    private final CategoriaService categoriaService;
     private final TransacaoService transacaoService;
 
     public FonteDeSaldoViaFinancas(
         CalcularSaldoService calcularSaldoService,
         ContaService contaService,
+        CategoriaService categoriaService,
         TransacaoService transacaoService
     ) {
         this.calcularSaldoService = calcularSaldoService;
         this.contaService = contaService;
+        this.categoriaService = categoriaService;
         this.transacaoService = transacaoService;
     }
 
@@ -86,5 +96,27 @@ public class FonteDeSaldoViaFinancas implements FonteDeSaldo {
             ));
         } while (numero < pagina.totalPaginas());
         return despesas;
+    }
+
+    /** Os nomes saem das listas do usuário, como na listagem de transações: uma consulta por tipo, e não uma por linha. */
+    @Override
+    public List<PagamentoLancado> pagamentos(Long usuarioId, Collection<Long> transacaoIds) {
+        List<Transacao> transacoes = transacaoService.buscarPorIds(usuarioId, transacaoIds);
+        if (transacoes.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> nomesPorConta = contaService.listar(usuarioId).stream()
+            .collect(Collectors.toMap(Conta::getId, Conta::getNome));
+        Map<Long, String> nomesPorCategoria = categoriaService.listar(usuarioId).stream()
+            .collect(Collectors.toMap(Categoria::getId, Categoria::getNome));
+        return transacoes.stream()
+            .map(transacao -> new PagamentoLancado(
+                transacao.getId(),
+                transacao.getValor(),
+                transacao.getDataTransacao(),
+                nomesPorConta.get(transacao.getContaId()),
+                nomesPorCategoria.get(transacao.getCategoriaId())
+            ))
+            .toList();
     }
 }

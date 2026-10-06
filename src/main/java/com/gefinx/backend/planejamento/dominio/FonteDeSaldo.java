@@ -2,6 +2,7 @@ package com.gefinx.backend.planejamento.dominio;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -22,4 +23,7 @@ public interface FonteDeSaldo {
 
     /** As despesas com data em {@code dia} — de onde saem os pagamentos feitos hoje. */
     List<DespesaLancada> despesasLancadasEm(Long usuarioId, LocalDate dia);
+
+    /** As transações informadas, com os nomes de conta e categoria. Id que não é do usuário fica de fora. */
+    List<PagamentoLancado> pagamentos(Long usuarioId, Collection<Long> transacaoIds);
 }

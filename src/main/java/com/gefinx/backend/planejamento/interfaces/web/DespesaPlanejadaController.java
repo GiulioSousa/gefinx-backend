@@ -5,9 +5,13 @@ import com.gefinx.backend.planejamento.aplicacao.DespesaPlanejadaService;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoDespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoPagamento;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDespesaPaga;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaPagamento;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaPagina;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -36,6 +41,20 @@ public class DespesaPlanejadaController {
         return despesaPlanejadaService.listar(UsuarioAutenticado.obterId()).stream()
             .map(RespostaDespesaPlanejada::apartirDoDominio)
             .toList();
+    }
+
+    /** Os mesmos limites de página e tamanho da listagem de transações. */
+    @GetMapping("/pagas")
+    public RespostaPagina<RespostaDespesaPaga> listarPagas(
+        @RequestParam(defaultValue = "0") @Min(value = 0, message = "A página não pode ser negativa") int pagina,
+        @RequestParam(defaultValue = "20")
+        @Min(value = 1, message = "O tamanho deve ser no mínimo 1")
+        @Max(value = 100, message = "O tamanho deve ser no máximo 100") int tamanho
+    ) {
+        return RespostaPagina.apartirDoDominio(
+            despesaPlanejadaService.listarPagas(UsuarioAutenticado.obterId(), pagina, tamanho),
+            RespostaDespesaPaga::apartirDoDominio
+        );
     }
 
     @PostMapping

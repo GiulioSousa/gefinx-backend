@@ -6,8 +6,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Lê só as pendentes. A paga saiu do planejamento, e a tela não a mostra; para desfazer o
- * pagamento, exclui-se a transação, e a despesa volta a ser pendente por conta própria.
+ * As pendentes formam o plano; as pagas, o histórico, e só são lidas para ele. Uma paga não
+ * se edita nem se exclui por aqui: para desfazer o pagamento, exclui-se a transação, e a
+ * despesa volta a ser pendente por conta própria.
  */
 public interface RepositorioDespesaPlanejada {
 
@@ -17,6 +18,13 @@ public interface RepositorioDespesaPlanejada {
     List<DespesaPlanejada> listarPendentesPorUsuario(Long usuarioId);
 
     Optional<DespesaPlanejada> buscarPendentePorIdEUsuario(Long id, Long usuarioId);
+
+    /**
+     * As pagas, do prazo mais recente para o mais antigo. A ordem é a do prazo, e não a da
+     * data do pagamento, porque essa mora em finanças: ordenar por ela exigiria juntar os dois
+     * contextos numa consulta só.
+     */
+    Pagina<DespesaPlanejada> listarPagasPorUsuario(Long usuarioId, int pagina, int tamanho);
 
     void excluir(Long id);
 

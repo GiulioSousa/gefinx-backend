@@ -1,6 +1,10 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
+import com.gefinx.backend.planejamento.dominio.DespesaPaga;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
+import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
+import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -10,6 +14,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,13 +39,15 @@ class DespesaPlanejadaServiceTest {
 
     private RepositorioDespesaPlanejada repositorio;
     private RegistroDePagamento registroDePagamento;
+    private FonteDeSaldo fonteDeSaldo;
     private DespesaPlanejadaService servico;
 
     @BeforeEach
     void preparar() {
         repositorio = mock(RepositorioDespesaPlanejada.class);
         registroDePagamento = mock(RegistroDePagamento.class);
-        servico = new DespesaPlanejadaService(repositorio, registroDePagamento);
+        fonteDeSaldo = mock(FonteDeSaldo.class);
+        servico = new DespesaPlanejadaService(repositorio, registroDePagamento, fonteDeSaldo);
         when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(
             new DespesaPlanejada(DESPESA, "Aluguel", new BigDecimal("1500.00"), LocalDate.of(2026, 10, 10), USUARIO)
         ));
@@ -84,6 +91,39 @@ class DespesaPlanejadaServiceTest {
         assertThatThrownBy(() -> servico.pagar(OUTRO_USUARIO, DESPESA, "Aluguel", BigDecimal.TEN, HOJE, CATEGORIA, CONTA))
             .isInstanceOf(RecursoNaoEncontradoNoPlanejamentoException.class);
         verify(registroDePagamento, never()).registrar(any(), any(), any(), any(), any(), any());
+    }
+
+    /**
+     * Cada paga recebe a sua transação, numa leitura só de finanças. A que perdeu a transação
+     * entre as duas leituras continua na página, sem os dados do pagamento.
+     */
+    @Test
+    void oHistoricoJuntaCadaPagaASuaTransacao() {
+        DespesaPlanejada aluguel = new DespesaPlanejada(1L, "Aluguel", new BigDecimal("1500.00"), HOJE, USUARIO, 10L);
+        DespesaPlanejada luz = new DespesaPlanejada(2L, "Luz", new BigDecimal("80.00"), HOJE, USUARIO, 20L);
+        when(repositorio.listarPagasPorUsuario(USUARIO, 0, 20)).thenReturn(new Pagina<>(List.of(aluguel, luz), 0, 20, 2));
+        when(fonteDeSaldo.pagamentos(USUARIO, List.of(10L, 20L))).thenReturn(List.of(
+            new PagamentoLancado(10L, new BigDecimal("1480.00"), HOJE.plusDays(1), "Banco", "Moradia")
+        ));
+
+        Pagina<DespesaPaga> historico = servico.listarPagas(USUARIO, 0, 20);
+
+        assertThat(historico.totalItens()).isEqualTo(2);
+        DespesaPaga primeira = historico.itens().get(0);
+        assertThat(primeira.pagamento()).hasValueSatisfying(pagamento ->
+            assertThat(pagamento.valor()).isEqualByComparingTo("1480.00"));
+        assertThat(primeira.pagaComAtraso()).as("pago um dia depois do prazo").isTrue();
+        assertThat(historico.itens().get(1).pagamento()).isEmpty();
+        assertThat(historico.itens().get(1).pagaComAtraso()).isFalse();
+    }
+
+    @Test
+    void pagarNoDiaDoPrazoNaoEAtraso() {
+        DespesaPlanejada despesa = new DespesaPlanejada(1L, "Aluguel", BigDecimal.TEN, HOJE, USUARIO, 10L);
+
+        DespesaPaga paga = new DespesaPaga(despesa, Optional.of(new PagamentoLancado(10L, BigDecimal.TEN, HOJE, "Banco", "Moradia")));
+
+        assertThat(paga.pagaComAtraso()).isFalse();
     }
 
     @Test

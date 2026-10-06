@@ -1,6 +1,10 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
+import com.gefinx.backend.planejamento.dominio.DespesaPaga;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
+import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
+import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -10,6 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Aceita prazo no passado, de propósito. Recusá-lo na criação e aceitá-lo na edição seria
@@ -22,14 +30,36 @@ public class DespesaPlanejadaService {
 
     private final RepositorioDespesaPlanejada repositorio;
     private final RegistroDePagamento registroDePagamento;
+    private final FonteDeSaldo fonteDeSaldo;
 
-    public DespesaPlanejadaService(RepositorioDespesaPlanejada repositorio, RegistroDePagamento registroDePagamento) {
+    public DespesaPlanejadaService(
+        RepositorioDespesaPlanejada repositorio,
+        RegistroDePagamento registroDePagamento,
+        FonteDeSaldo fonteDeSaldo
+    ) {
         this.repositorio = repositorio;
         this.registroDePagamento = registroDePagamento;
+        this.fonteDeSaldo = fonteDeSaldo;
     }
 
     public List<DespesaPlanejada> listar(Long usuarioId) {
         return repositorio.listarPendentesPorUsuario(usuarioId);
+    }
+
+    /**
+     * O histórico: uma página de pagas, cada uma com a transação que a pagou. As transações da
+     * página vêm de finanças numa leitura só, e não uma por despesa.
+     */
+    public Pagina<DespesaPaga> listarPagas(Long usuarioId, int pagina, int tamanho) {
+        Pagina<DespesaPlanejada> pagas = repositorio.listarPagasPorUsuario(usuarioId, pagina, tamanho);
+        List<Long> transacaoIds = pagas.itens().stream().map(DespesaPlanejada::getTransacaoId).toList();
+        Map<Long, PagamentoLancado> pagamentos = fonteDeSaldo.pagamentos(usuarioId, transacaoIds).stream()
+            .collect(Collectors.toMap(PagamentoLancado::transacaoId, Function.identity()));
+
+        List<DespesaPaga> itens = pagas.itens().stream()
+            .map(despesa -> new DespesaPaga(despesa, Optional.ofNullable(pagamentos.get(despesa.getTransacaoId()))))
+            .toList();
+        return new Pagina<>(itens, pagas.pagina(), pagas.tamanho(), pagas.totalItens());
     }
 
     @Transactional

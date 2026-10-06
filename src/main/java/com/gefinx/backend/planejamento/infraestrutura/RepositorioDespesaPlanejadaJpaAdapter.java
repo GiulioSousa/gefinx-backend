@@ -1,7 +1,11 @@
 package com.gefinx.backend.planejamento.infraestrutura;
 
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -35,6 +39,21 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
     public Optional<DespesaPlanejada> buscarPendentePorIdEUsuario(Long id, Long usuarioId) {
         return springDataRepository.findByIdAndUsuarioIdAndTransacaoIdIsNull(id, usuarioId)
             .map(DespesaPlanejadaJpaEntity::paraDominio);
+    }
+
+    /** Desempate por id: duas pagas com o mesmo prazo não trocam de página entre uma busca e outra. */
+    @Override
+    public Pagina<DespesaPlanejada> listarPagasPorUsuario(Long usuarioId, int pagina, int tamanho) {
+        Page<DespesaPlanejadaJpaEntity> resultado = springDataRepository.findByUsuarioIdAndTransacaoIdIsNotNull(
+            usuarioId,
+            PageRequest.of(pagina, tamanho, Sort.by(Sort.Order.desc("prazo"), Sort.Order.desc("id")))
+        );
+        return new Pagina<>(
+            resultado.getContent().stream().map(DespesaPlanejadaJpaEntity::paraDominio).toList(),
+            pagina,
+            tamanho,
+            resultado.getTotalElements()
+        );
     }
 
     @Override
