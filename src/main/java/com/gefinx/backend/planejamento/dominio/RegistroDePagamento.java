@@ -16,4 +16,7 @@ public interface RegistroDePagamento {
      * finanças: conta ou categoria de outro usuário, ou categoria de receita, são recusadas lá.
      */
     Long registrar(Long usuarioId, String descricao, BigDecimal valor, LocalDate data, Long categoriaId, Long contaId);
+
+    /** Exclui a transação do pagamento, com as mesmas conferências da exclusão em Transações. */
+    void desfazer(Long usuarioId, Long transacaoId);
 }

@@ -8,6 +8,7 @@ import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoExceptio
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.gefinx.backend.financas.dominio.excecoes.SaldoNegativoException;
+import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.gefinx.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
@@ -47,7 +48,7 @@ public class ManipuladorGlobalDeExcecoes {
         return construirResposta(HttpStatus.BAD_REQUEST, excecao.getMessage());
     }
 
-    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, ContaEmUsoException.class, ContaDuplicadaException.class, TipoDaCategoriaEmUsoException.class, SaldoNegativoException.class})
+    @ExceptionHandler({CategoriaEmUsoException.class, CategoriaDuplicadaException.class, ContaEmUsoException.class, ContaDuplicadaException.class, TipoDaCategoriaEmUsoException.class, SaldoNegativoException.class, PagamentoNaoDesfeitoException.class})
     public ResponseEntity<ErroResposta> tratarConflito(RuntimeException excecao) {
         return construirResposta(HttpStatus.CONFLICT, excecao.getMessage());
     }

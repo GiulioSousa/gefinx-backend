@@ -6,9 +6,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * As pendentes formam o plano; as pagas, o histórico, e só são lidas para ele. Uma paga não
- * se edita nem se exclui por aqui: para desfazer o pagamento, exclui-se a transação, e a
- * despesa volta a ser pendente por conta própria.
+ * As pendentes formam o plano; as pagas, o histórico. Uma paga não se edita nem se exclui: o
+ * caminho de volta é desfazer o pagamento, que exclui a transação e a devolve às pendentes.
  */
 public interface RepositorioDespesaPlanejada {
 
@@ -28,6 +27,11 @@ public interface RepositorioDespesaPlanejada {
 
     /** Se alguma ocorrência já foi gerada a partir desta. */
     boolean temSucessora(Long id);
+
+    /** A ocorrência gerada a partir desta, paga ou não. */
+    Optional<DespesaPlanejada> buscarSucessora(Long id);
+
+    Optional<DespesaPlanejada> buscarPagaPorIdEUsuario(Long id, Long usuarioId);
 
     void excluir(Long id);
 

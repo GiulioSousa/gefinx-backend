@@ -28,4 +28,9 @@ public class RegistroDePagamentoViaFinancas implements RegistroDePagamento {
             .transacao()
             .getId();
     }
+
+    @Override
+    public void desfazer(Long usuarioId, Long transacaoId) {
+        transacaoService.excluir(usuarioId, transacaoId);
+    }
 }

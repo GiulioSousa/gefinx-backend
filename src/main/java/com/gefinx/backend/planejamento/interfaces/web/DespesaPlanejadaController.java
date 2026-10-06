@@ -5,6 +5,7 @@ import com.gefinx.backend.planejamento.aplicacao.DespesaPlanejadaService;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoDespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoPagamento;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDesfazerPagamento;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDespesaPaga;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaDespesaPlanejada;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaPagamento;
@@ -80,6 +81,12 @@ public class DespesaPlanejadaController {
             requisicao.categoriaId(), requisicao.contaId()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(new RespostaPagamento(transacaoId));
+    }
+
+    /** {@code 200} com o corpo, e não {@code 204}: o desfecho da próxima ocorrência é parte da resposta. */
+    @DeleteMapping("/{id}/pagamento")
+    public RespostaDesfazerPagamento desfazerPagamento(@PathVariable Long id) {
+        return new RespostaDesfazerPagamento(despesaPlanejadaService.desfazerPagamento(UsuarioAutenticado.obterId(), id));
     }
 
     @DeleteMapping("/{id}")

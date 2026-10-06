@@ -19,6 +19,10 @@ public interface DespesaPlanejadaSpringDataRepository extends JpaRepository<Desp
 
     boolean existsByAnteriorId(Long anteriorId);
 
+    Optional<DespesaPlanejadaJpaEntity> findByAnteriorId(Long anteriorId);
+
+    Optional<DespesaPlanejadaJpaEntity> findByIdAndUsuarioIdAndTransacaoIdIsNotNull(Long id, Long usuarioId);
+
     @Query("""
         SELECT d.transacaoId FROM DespesaPlanejadaJpaEntity d
          WHERE d.usuarioId = :usuarioId AND d.transacaoId IN :transacaoIds

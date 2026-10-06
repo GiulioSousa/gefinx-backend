@@ -96,6 +96,27 @@ public class DespesaPlanejada {
         );
     }
 
+    /** De volta às pendentes, com tudo o mais como estava. */
+    public DespesaPlanejada semPagamento() {
+        return pagaCom(null);
+    }
+
+    /**
+     * Se {@code sucessora} está como {@link #proxima()} a gerou: mesma descrição, valor, prazo e
+     * repetição. É o que separa a próxima que se pode descartar ao desfazer este pagamento da
+     * que alguém já ajustou — o valor da conta do mês, por exemplo — e que deve ficar.
+     */
+    public boolean gerouSemMudancas(DespesaPlanejada sucessora) {
+        if (!seRepete()) {
+            return false;
+        }
+        DespesaPlanejada esperada = proxima();
+        return sucessora.descricao.equals(esperada.descricao)
+            && sucessora.valor.compareTo(esperada.valor) == 0
+            && sucessora.prazo.equals(esperada.prazo)
+            && sucessora.recorrencia == esperada.recorrencia;
+    }
+
     public boolean estaPaga() {
         return transacaoId != null;
     }

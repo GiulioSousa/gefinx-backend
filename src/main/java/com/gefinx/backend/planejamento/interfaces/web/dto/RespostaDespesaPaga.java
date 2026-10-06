@@ -2,6 +2,7 @@ package com.gefinx.backend.planejamento.interfaces.web.dto;
 
 import com.gefinx.backend.planejamento.dominio.DespesaPaga;
 import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,7 +21,8 @@ public record RespostaDespesaPaga(
     LocalDate dataPagamento,
     String conta,
     String categoria,
-    boolean pagaComAtraso
+    boolean pagaComAtraso,
+    Recorrencia recorrencia
 ) {
 
     public static RespostaDespesaPaga apartirDoDominio(DespesaPaga paga) {
@@ -35,7 +37,8 @@ public record RespostaDespesaPaga(
             pagamento == null ? null : pagamento.data(),
             pagamento == null ? null : pagamento.conta(),
             pagamento == null ? null : pagamento.categoria(),
-            paga.pagaComAtraso()
+            paga.pagaComAtraso(),
+            paga.despesa().getRecorrencia()
         );
     }
 }

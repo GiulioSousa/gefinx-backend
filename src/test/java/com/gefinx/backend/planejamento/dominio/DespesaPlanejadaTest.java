@@ -62,6 +62,25 @@ class DespesaPlanejadaTest {
     }
 
     @Test
+    void reconheceAProximaComoNasceuEAEditada() {
+        DespesaPlanejada atual = new DespesaPlanejada(
+            7L, "Luz", VALOR, LocalDate.of(2027, 1, 31), USUARIO, 99L, Recorrencia.MENSAL, 31, null
+        );
+        DespesaPlanejada comoNasceu = atual.proxima();
+
+        assertThat(atual.gerouSemMudancas(comoNasceu)).isTrue();
+        assertThat(atual.gerouSemMudancas(
+            comoNasceu.editada("Luz", new BigDecimal("150"), comoNasceu.getPrazo(), Recorrencia.MENSAL)
+        )).as("o mesmo valor com outra escala não é edição").isTrue();
+        assertThat(atual.gerouSemMudancas(
+            comoNasceu.editada("Luz", new BigDecimal("180.00"), comoNasceu.getPrazo(), Recorrencia.MENSAL)
+        )).isFalse();
+        assertThat(atual.gerouSemMudancas(
+            comoNasceu.editada("Luz", VALOR, comoNasceu.getPrazo(), null)
+        )).as("a série foi encerrada nela").isFalse();
+    }
+
+    @Test
     void tirarARecorrenciaTiraAAncora() {
         DespesaPlanejada mensal = DespesaPlanejada.nova("Luz", VALOR, LocalDate.of(2027, 1, 31), USUARIO, Recorrencia.MENSAL);
 

@@ -38,6 +38,7 @@ class PlanejamentoTest {
     private static final int SEM_CONTEUDO = 204;
     private static final int REQUISICAO_INVALIDA = 400;
     private static final int NAO_ENCONTRADO = 404;
+    private static final int CONFLITO = 409;
 
     private static final String PREFIXO = "planejamento-";
 
@@ -376,11 +377,85 @@ class PlanejamentoTest {
     }
 
     @Test
+    void desfazerOPagamentoExcluiATransacaoEDevolveADespesaAoPlano() {
+        long despesa = criarDespesa("IPVA", "300.00", hoje.plusDays(30));
+        pagar(despesa, banco, categoriaDespesa, "300.00");
+
+        HttpResponse<String> resposta = desfazer(despesa, token);
+
+        assertThat(resposta.statusCode()).isEqualTo(OK);
+        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("NENHUMA");
+        assertThat(contarDespesasLancadas()).isZero();
+        assertThat(obter("/api/despesas-planejadas/pagas").get("itens")).isEmpty();
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("id").asLong()).isEqualTo(despesa);
+    }
+
+    @Test
+    void desfazerARecorrenteTiraDoPlanoAProximaComoNasceu() {
+        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(2), "SEMANAL");
+        pagar(despesa, banco, categoriaDespesa, "600.00");
+
+        HttpResponse<String> resposta = desfazer(despesa, token);
+
+        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("REMOVIDA");
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("id").asLong()).isEqualTo(despesa);
+    }
+
+    /** Editada, a próxima fica: quem a ajustou decide se ainda vale. */
+    @Test
+    void desfazerMantemAProximaJaEditada() {
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        pagar(despesa, banco, categoriaDespesa, "150.00");
+        long proxima = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
+        enviar("PUT", "/api/despesas-planejadas/" + proxima, token,
+            "{\"descricao\":\"Luz\",\"valor\":180.00,\"prazo\":\"" + hoje.plusDays(2).plusMonths(1) + "\",\"recorrencia\":\"MENSAL\"}");
+
+        HttpResponse<String> resposta = desfazer(despesa, token);
+
+        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("MANTIDA");
+        assertThat(obter("/api/planejamento").get("itens")).hasSize(2);
+    }
+
+    @Test
+    void naoDesfazQuandoAProximaJaFoiPaga() {
+        long despesa = criarDespesa("Aluguel do carro", "100.00", hoje.plusDays(2), "SEMANAL");
+        pagar(despesa, banco, categoriaDespesa, "100.00");
+        long proxima = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
+        pagar(proxima, banco, categoriaDespesa, "100.00");
+
+        HttpResponse<String> resposta = desfazer(despesa, token);
+
+        assertThat(resposta.statusCode()).isEqualTo(CONFLITO);
+        assertThat(contarDespesasLancadas()).isEqualTo(2);
+        assertThat(obter("/api/despesas-planejadas/pagas").get("totalItens").asLong()).isEqualTo(2);
+    }
+
+    /** Pendente, ou de outro usuário: não há pagamento a desfazer, e nada é excluído. */
+    @Test
+    void naoDesfazOQueNaoEPagaDoUsuario() {
+        long pendente = criarDespesa("IPVA", "300.00", hoje.plusDays(30));
+        long paga = criarDespesa("Luz", "100.00", hoje.plusDays(30));
+        pagar(paga, banco, categoriaDespesa, "100.00");
+
+        assertThat(desfazer(pendente, token).statusCode()).isEqualTo(NAO_ENCONTRADO);
+        assertThat(desfazer(paga, criarUsuarioEObterToken()).statusCode()).isEqualTo(NAO_ENCONTRADO);
+        assertThat(contarDespesasLancadas()).isEqualTo(1);
+    }
+
+    @Test
     void recusaRecorrenciaDesconhecida() {
         HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token,
             "{\"descricao\":\"IPVA\",\"valor\":100.00,\"prazo\":\"" + hoje + "\",\"recorrencia\":\"ANUAL\"}");
 
         assertThat(resposta.statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+    }
+
+    private HttpResponse<String> desfazer(long despesa, String tokenUsado) {
+        return enviar("DELETE", "/api/despesas-planejadas/" + despesa + "/pagamento", tokenUsado, null);
     }
 
     private HttpResponse<String> pagar(long despesa, long conta, long categoria, String valor) {

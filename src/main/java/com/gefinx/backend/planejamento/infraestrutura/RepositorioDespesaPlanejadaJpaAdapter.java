@@ -62,6 +62,17 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
     }
 
     @Override
+    public Optional<DespesaPlanejada> buscarSucessora(Long id) {
+        return springDataRepository.findByAnteriorId(id).map(DespesaPlanejadaJpaEntity::paraDominio);
+    }
+
+    @Override
+    public Optional<DespesaPlanejada> buscarPagaPorIdEUsuario(Long id, Long usuarioId) {
+        return springDataRepository.findByIdAndUsuarioIdAndTransacaoIdIsNotNull(id, usuarioId)
+            .map(DespesaPlanejadaJpaEntity::paraDominio);
+    }
+
+    @Override
     public void excluir(Long id) {
         springDataRepository.deleteById(id);
     }

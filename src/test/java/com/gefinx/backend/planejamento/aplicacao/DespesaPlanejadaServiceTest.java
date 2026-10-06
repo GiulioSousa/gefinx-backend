@@ -1,5 +1,6 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
+import com.gefinx.backend.planejamento.dominio.DesfechoDaProxima;
 import com.gefinx.backend.planejamento.dominio.DespesaPaga;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
@@ -8,10 +9,12 @@ import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,6 +25,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -164,6 +169,35 @@ class DespesaPlanejadaServiceTest {
 
         verify(repositorio, times(1)).salvar(any());
         verify(repositorio, never()).temSucessora(anyLong());
+    }
+
+    /** Com a próxima já paga, nada é tocado: nem a transação, nem a despesa. */
+    @Test
+    void naoDesfazSeAProximaJaFoiPaga() {
+        DespesaPlanejada paga = new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE, USUARIO, TRANSACAO, Recorrencia.SEMANAL, null, null
+        );
+        when(repositorio.buscarPagaPorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(paga));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(paga.proxima().pagaCom(100L)));
+
+        assertThatThrownBy(() -> servico.desfazerPagamento(USUARIO, DESPESA))
+            .isInstanceOf(PagamentoNaoDesfeitoException.class);
+        verify(registroDePagamento, never()).desfazer(any(), any());
+        verify(repositorio, never()).salvar(any());
+    }
+
+    /** A despesa perde o pagamento antes de a transação sumir, para a cópia em memória não a restaurar. */
+    @Test
+    void desfazerGravaADespesaSemPagamentoAntesDeExcluirATransacao() {
+        DespesaPlanejada paga = new DespesaPlanejada(DESPESA, "IPVA", BigDecimal.TEN, HOJE, USUARIO, TRANSACAO);
+        when(repositorio.buscarPagaPorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(paga));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.empty());
+
+        assertThat(servico.desfazerPagamento(USUARIO, DESPESA)).isEqualTo(DesfechoDaProxima.NENHUMA);
+
+        InOrder ordem = inOrder(repositorio, registroDePagamento);
+        ordem.verify(repositorio).salvar(argThat(despesa -> !despesa.estaPaga()));
+        ordem.verify(registroDePagamento).desfazer(USUARIO, TRANSACAO);
     }
 
     @Test

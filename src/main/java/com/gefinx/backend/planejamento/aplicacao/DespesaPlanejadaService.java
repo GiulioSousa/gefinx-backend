@@ -1,5 +1,6 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
+import com.gefinx.backend.planejamento.dominio.DesfechoDaProxima;
 import com.gefinx.backend.planejamento.dominio.DespesaPaga;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
@@ -8,6 +9,7 @@ import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -122,6 +124,43 @@ public class DespesaPlanejadaService {
             repositorio.salvar(despesa.proxima());
         }
         return transacaoId;
+    }
+
+    /**
+     * O caminho de volta do {@link #pagar}, numa transação de banco só: a transação de pagamento
+     * é excluída, a despesa volta ao plano, e a próxima ocorrência que este pagamento gerou sai
+     * junto — se ainda estiver como nasceu. Editada, ela fica: alguém já a ajustou, e só essa
+     * pessoa sabe se ainda vale.
+     *
+     * <p>Se a próxima já foi paga, nada muda: desfazer só esta deixaria duas ocorrências da
+     * mesma série com o calendário fora de ordem. Desfaz-se primeiro a mais recente.
+     *
+     * <p>A despesa é gravada sem o pagamento antes de a transação ser excluída. O banco limparia
+     * a ligação sozinho ({@code ON DELETE SET NULL}), mas a cópia em memória ainda apontaria para
+     * a transação apagada, e uma gravação posterior a restauraria.
+     */
+    @Transactional
+    public DesfechoDaProxima desfazerPagamento(Long usuarioId, Long id) {
+        DespesaPlanejada paga = repositorio.buscarPagaPorIdEUsuario(id, usuarioId)
+            .orElseThrow(() -> new RecursoNaoEncontradoNoPlanejamentoException("Despesa paga não encontrada"));
+        Optional<DespesaPlanejada> sucessora = repositorio.buscarSucessora(id);
+        if (sucessora.isPresent() && sucessora.get().estaPaga()) {
+            throw new PagamentoNaoDesfeitoException(
+                "A próxima ocorrência de \"" + paga.getDescricao() + "\" já foi paga. Desfaça primeiro o pagamento dela."
+            );
+        }
+
+        repositorio.salvar(paga.semPagamento());
+        registroDePagamento.desfazer(usuarioId, paga.getTransacaoId());
+
+        if (sucessora.isEmpty()) {
+            return DesfechoDaProxima.NENHUMA;
+        }
+        if (paga.gerouSemMudancas(sucessora.get())) {
+            repositorio.excluir(sucessora.get().getId());
+            return DesfechoDaProxima.REMOVIDA;
+        }
+        return DesfechoDaProxima.MANTIDA;
     }
 
     private DespesaPlanejada buscarOuLancar(Long usuarioId, Long id) {
