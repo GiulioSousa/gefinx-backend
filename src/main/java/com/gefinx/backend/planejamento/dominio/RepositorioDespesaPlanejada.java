@@ -26,6 +26,9 @@ public interface RepositorioDespesaPlanejada {
      */
     Pagina<DespesaPlanejada> listarPagasPorUsuario(Long usuarioId, int pagina, int tamanho);
 
+    /** Se alguma ocorrência já foi gerada a partir desta. */
+    boolean temSucessora(Long id);
+
     void excluir(Long id);
 
     /** Das transações informadas, as que pagam alguma despesa planejada do usuário. */

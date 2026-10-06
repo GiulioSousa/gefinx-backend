@@ -1,6 +1,7 @@
 package com.gefinx.backend.planejamento.interfaces.web.dto;
 
 import com.gefinx.backend.planejamento.dominio.PlanoDePagamento;
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.SituacaoDaDespesa;
 
 import java.math.BigDecimal;
@@ -31,6 +32,7 @@ public record RespostaPlanejamento(
         String descricao,
         BigDecimal valor,
         LocalDate prazo,
+        Recorrencia recorrencia,
         BigDecimal acumulado,
         BigDecimal falta,
         int diasDeTrabalho,
@@ -54,6 +56,7 @@ public record RespostaPlanejamento(
                     item.despesa().getDescricao(),
                     item.despesa().getValor(),
                     item.despesa().getPrazo(),
+                    item.despesa().getRecorrencia(),
                     item.acumulado(),
                     item.falta(),
                     item.diasDeTrabalho(),

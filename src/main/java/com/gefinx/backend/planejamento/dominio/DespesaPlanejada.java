@@ -10,6 +10,10 @@ import java.time.LocalDate;
  *
  * <p>Paga é a que tem {@code transacaoId}: a transação é a prova do pagamento. Excluí-la
  * desfaz a ligação no banco, e a despesa volta ao planejamento.
+ *
+ * <p>Com {@code recorrencia}, ela é uma ocorrência de uma despesa que se repete, e paga gera a
+ * seguinte ({@link #proxima()}). {@code diaDoVencimento} é a âncora do mensal — ver a V14 — e
+ * {@code anteriorId}, a ocorrência que a gerou.
  */
 public class DespesaPlanejada {
 
@@ -19,30 +23,89 @@ public class DespesaPlanejada {
     private final LocalDate prazo;
     private final Long usuarioId;
     private final Long transacaoId;
+    private final Recorrencia recorrencia;
+    private final Integer diaDoVencimento;
+    private final Long anteriorId;
 
     public DespesaPlanejada(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId) {
         this(id, descricao, valor, prazo, usuarioId, null);
     }
 
     public DespesaPlanejada(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId, Long transacaoId) {
+        this(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, null);
+    }
+
+    public DespesaPlanejada(
+        Long id,
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Long usuarioId,
+        Long transacaoId,
+        Recorrencia recorrencia,
+        Integer diaDoVencimento,
+        Long anteriorId
+    ) {
         this.id = id;
         this.descricao = descricao;
         this.valor = valor;
         this.prazo = prazo;
         this.usuarioId = usuarioId;
         this.transacaoId = transacaoId;
+        this.recorrencia = recorrencia;
+        this.diaDoVencimento = diaDoVencimento;
+        this.anteriorId = anteriorId;
     }
 
-    public static DespesaPlanejada nova(String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId) {
-        return new DespesaPlanejada(null, descricao, valor, prazo, usuarioId);
+    /** O dia do prazo vira a âncora do mensal: quem cadastra no dia 31 quer o 31. */
+    public static DespesaPlanejada nova(String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId, Recorrencia recorrencia) {
+        return new DespesaPlanejada(null, descricao, valor, prazo, usuarioId, null, recorrencia, ancora(recorrencia, prazo), null);
     }
 
-    public DespesaPlanejada pagaCom(Long transacaoId) {
-        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId);
+    /**
+     * Os dados novos, mantidos a ligação com a anterior e o pagamento. A âncora só muda se o
+     * prazo mudar: editar só o valor de uma ocorrência ajustada para 28/02 não pode trocar o 31
+     * da série pelo 28.
+     */
+    public DespesaPlanejada editada(String novaDescricao, BigDecimal novoValor, LocalDate novoPrazo, Recorrencia novaRecorrencia) {
+        Integer novoDia = novaRecorrencia == Recorrencia.MENSAL && novoPrazo.equals(prazo) && diaDoVencimento != null
+            ? diaDoVencimento
+            : ancora(novaRecorrencia, novoPrazo);
+        return new DespesaPlanejada(
+            id, novaDescricao, novoValor, novoPrazo, usuarioId, transacaoId, novaRecorrencia, novoDia, anteriorId
+        );
+    }
+
+    public DespesaPlanejada pagaCom(Long novaTransacaoId) {
+        return new DespesaPlanejada(
+            id, descricao, valor, prazo, usuarioId, novaTransacaoId, recorrencia, diaDoVencimento, anteriorId
+        );
+    }
+
+    /**
+     * A ocorrência seguinte: mesma descrição, mesmo valor — que se edita se a conta vier
+     * diferente —, e o prazo um período adiante. Só existe para a que se repete.
+     */
+    public DespesaPlanejada proxima() {
+        if (recorrencia == null) {
+            throw new IllegalStateException("Despesa que não se repete não tem próxima ocorrência");
+        }
+        return new DespesaPlanejada(
+            null, descricao, valor, recorrencia.proximoPrazo(prazo, diaDoVencimento), usuarioId, null,
+            recorrencia, diaDoVencimento, id
+        );
     }
 
     public boolean estaPaga() {
         return transacaoId != null;
+    }
+
+    public boolean seRepete() {
+        return recorrencia != null;
+    }
+
+    private static Integer ancora(Recorrencia recorrencia, LocalDate prazo) {
+        return recorrencia == Recorrencia.MENSAL ? prazo.getDayOfMonth() : null;
     }
 
     public Long getId() {
@@ -67,5 +130,17 @@ public class DespesaPlanejada {
 
     public Long getTransacaoId() {
         return transacaoId;
+    }
+
+    public Recorrencia getRecorrencia() {
+        return recorrencia;
+    }
+
+    public Integer getDiaDoVencimento() {
+        return diaDoVencimento;
+    }
+
+    public Long getAnteriorId() {
+        return anteriorId;
     }
 }

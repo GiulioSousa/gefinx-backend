@@ -1,5 +1,6 @@
 package com.gefinx.backend.planejamento.interfaces.web.dto;
 
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,8 @@ import java.time.LocalDate;
  * Os limites de {@code descricao} e {@code valor} são os de {@code RequisicaoTransacao}, e
  * pelo mesmo motivo que a coluna repete o tipo: paga, a despesa vira transação, e o que
  * coubesse aqui e não lá travaria o pagamento.
+ *
+ * <p>{@code recorrencia} ausente ou nula é a despesa que não se repete.
  */
 public record RequisicaoDespesaPlanejada(
     @NotBlank(message = "A descrição é obrigatória")
@@ -25,6 +28,8 @@ public record RequisicaoDespesaPlanejada(
     BigDecimal valor,
 
     @NotNull(message = "O prazo é obrigatório")
-    LocalDate prazo
+    LocalDate prazo,
+
+    Recorrencia recorrencia
 ) {
 }

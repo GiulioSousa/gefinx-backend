@@ -5,6 +5,7 @@ import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
 import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
 import com.gefinx.backend.planejamento.dominio.Pagina;
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -63,14 +64,25 @@ public class DespesaPlanejadaService {
     }
 
     @Transactional
-    public DespesaPlanejada criar(Long usuarioId, String descricao, BigDecimal valor, LocalDate prazo) {
-        return repositorio.salvar(DespesaPlanejada.nova(descricao, valor, prazo, usuarioId));
+    public DespesaPlanejada criar(Long usuarioId, String descricao, BigDecimal valor, LocalDate prazo, Recorrencia recorrencia) {
+        return repositorio.salvar(DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia));
     }
 
+    /**
+     * Tirar a recorrência é como se encerra a série: paga, esta ocorrência não gera a seguinte.
+     * As já pagas ficam como estão, no histórico.
+     */
     @Transactional
-    public DespesaPlanejada atualizar(Long usuarioId, Long id, String descricao, BigDecimal valor, LocalDate prazo) {
-        buscarOuLancar(usuarioId, id);
-        return repositorio.salvar(new DespesaPlanejada(id, descricao, valor, prazo, usuarioId));
+    public DespesaPlanejada atualizar(
+        Long usuarioId,
+        Long id,
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Recorrencia recorrencia
+    ) {
+        DespesaPlanejada existente = buscarOuLancar(usuarioId, id);
+        return repositorio.salvar(existente.editada(descricao, valor, prazo, recorrencia));
     }
 
     @Transactional
@@ -88,6 +100,9 @@ public class DespesaPlanejadaService {
      * as pendentes. Valor e data vêm de quem paga, e não da despesa — paga-se às vezes um
      * pouco a mais ou a menos do que se planejou, e em outro dia.
      *
+     * <p>Se ela se repete, a ocorrência seguinte entra no plano na mesma transação — a não ser
+     * que já exista: um pagamento desfeito e refeito não gera uma segunda.
+     *
      * @return o id da transação criada
      */
     @Transactional
@@ -103,6 +118,9 @@ public class DespesaPlanejadaService {
         DespesaPlanejada despesa = buscarOuLancar(usuarioId, id);
         Long transacaoId = registroDePagamento.registrar(usuarioId, descricao, valor, data, categoriaId, contaId);
         repositorio.salvar(despesa.pagaCom(transacaoId));
+        if (despesa.seRepete() && !repositorio.temSucessora(despesa.getId())) {
+            repositorio.salvar(despesa.proxima());
+        }
         return transacaoId;
     }
 

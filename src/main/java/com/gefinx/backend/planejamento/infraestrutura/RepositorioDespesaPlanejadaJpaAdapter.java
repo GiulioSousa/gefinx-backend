@@ -57,6 +57,11 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
     }
 
     @Override
+    public boolean temSucessora(Long id) {
+        return springDataRepository.existsByAnteriorId(id);
+    }
+
+    @Override
     public void excluir(Long id) {
         springDataRepository.deleteById(id);
     }

@@ -1,8 +1,11 @@
 package com.gefinx.backend.planejamento.infraestrutura;
 
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -35,26 +38,37 @@ public class DespesaPlanejadaJpaEntity {
     @Column(name = "transacao_id")
     private Long transacaoId;
 
+    @Enumerated(EnumType.STRING)
+    private Recorrencia recorrencia;
+
+    /** {@code Short} porque a coluna é {@code SMALLINT}, e o {@code validate} confere o tipo. */
+    @Column(name = "dia_do_vencimento")
+    private Short diaDoVencimento;
+
+    @Column(name = "anterior_id")
+    private Long anteriorId;
+
     protected DespesaPlanejadaJpaEntity() {
     }
 
-    private DespesaPlanejadaJpaEntity(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId, Long transacaoId) {
-        this.id = id;
-        this.descricao = descricao;
-        this.valor = valor;
-        this.prazo = prazo;
-        this.usuarioId = usuarioId;
-        this.transacaoId = transacaoId;
-    }
-
     public static DespesaPlanejadaJpaEntity apartirDoDominio(DespesaPlanejada despesa) {
-        return new DespesaPlanejadaJpaEntity(
-            despesa.getId(), despesa.getDescricao(), despesa.getValor(), despesa.getPrazo(), despesa.getUsuarioId(),
-            despesa.getTransacaoId()
-        );
+        DespesaPlanejadaJpaEntity entidade = new DespesaPlanejadaJpaEntity();
+        entidade.id = despesa.getId();
+        entidade.descricao = despesa.getDescricao();
+        entidade.valor = despesa.getValor();
+        entidade.prazo = despesa.getPrazo();
+        entidade.usuarioId = despesa.getUsuarioId();
+        entidade.transacaoId = despesa.getTransacaoId();
+        entidade.recorrencia = despesa.getRecorrencia();
+        entidade.diaDoVencimento = despesa.getDiaDoVencimento() == null ? null : despesa.getDiaDoVencimento().shortValue();
+        entidade.anteriorId = despesa.getAnteriorId();
+        return entidade;
     }
 
     public DespesaPlanejada paraDominio() {
-        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId);
+        return new DespesaPlanejada(
+            id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia,
+            diaDoVencimento == null ? null : diaDoVencimento.intValue(), anteriorId
+        );
     }
 }

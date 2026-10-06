@@ -328,6 +328,61 @@ class PlanejamentoTest {
             .isEqualTo(REQUISICAO_INVALIDA);
     }
 
+    @Test
+    void pagarARecorrenteColocaAProximaNoPlano() {
+        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(2), "SEMANAL");
+
+        pagar(despesa, banco, categoriaDespesa, "600.00");
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        JsonNode proxima = itens.get(0);
+        assertThat(proxima.get("id").asLong()).isNotEqualTo(despesa);
+        assertThat(proxima.get("descricao").asString()).isEqualTo("Aluguel do carro");
+        assertThat(proxima.get("valor").decimalValue()).isEqualByComparingTo("600.00");
+        assertThat(proxima.get("prazo").asString()).isEqualTo(hoje.plusDays(9).toString());
+        assertThat(proxima.get("recorrencia").asString()).isEqualTo("SEMANAL");
+        assertThat(obter("/api/despesas-planejadas/pagas").get("itens").get(0).get("id").asLong()).isEqualTo(despesa);
+    }
+
+    /** Desfeito o pagamento, a despesa volta; paga de novo, não nasce uma segunda sucessora. */
+    @Test
+    void desfazerERefazerOPagamentoNaoDuplicaAProxima() {
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        long transacao = objectMapper.readTree(pagar(despesa, banco, categoriaDespesa, "150.00").body())
+            .get("transacaoId").asLong();
+
+        enviar("DELETE", "/api/transacoes/" + transacao, token, null);
+        assertThat(obter("/api/planejamento").get("itens")).as("a desfeita e a sucessora").hasSize(2);
+
+        pagar(despesa, banco, categoriaDespesa, "150.00");
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("prazo").asString()).isEqualTo(hoje.plusDays(2).plusMonths(1).toString());
+    }
+
+    /** Tirar a recorrência encerra a série: paga, a despesa não gera a seguinte. */
+    @Test
+    void semARecorrenciaOPagamentoNaoGeraProxima() {
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        HttpResponse<String> edicao = enviar("PUT", "/api/despesas-planejadas/" + despesa, token,
+            "{\"descricao\":\"Luz\",\"valor\":150.00,\"prazo\":\"" + hoje.plusDays(2) + "\",\"recorrencia\":null}");
+        assertThat(edicao.statusCode()).isEqualTo(OK);
+        assertThat(objectMapper.readTree(edicao.body()).get("recorrencia").isNull()).isTrue();
+
+        pagar(despesa, banco, categoriaDespesa, "150.00");
+
+        assertThat(obter("/api/planejamento").get("itens")).isEmpty();
+    }
+
+    @Test
+    void recusaRecorrenciaDesconhecida() {
+        HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token,
+            "{\"descricao\":\"IPVA\",\"valor\":100.00,\"prazo\":\"" + hoje + "\",\"recorrencia\":\"ANUAL\"}");
+
+        assertThat(resposta.statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+    }
+
     private HttpResponse<String> pagar(long despesa, long conta, long categoria, String valor) {
         return enviar("POST", "/api/despesas-planejadas/" + despesa + "/pagamento", token,
             "{\"descricao\":\"Pagamento\",\"valor\":" + valor + ",\"dataTransacao\":\"" + hoje
@@ -359,8 +414,13 @@ class PlanejamentoTest {
     }
 
     private long criarDespesa(String descricao, String valor, LocalDate prazo) {
+        return criarDespesa(descricao, valor, prazo, null);
+    }
+
+    private long criarDespesa(String descricao, String valor, LocalDate prazo, String recorrencia) {
+        String repeticao = recorrencia == null ? "" : ",\"recorrencia\":\"" + recorrencia + "\"";
         HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token,
-            "{\"descricao\":\"" + descricao + "\",\"valor\":" + valor + ",\"prazo\":\"" + prazo + "\"}");
+            "{\"descricao\":\"" + descricao + "\",\"valor\":" + valor + ",\"prazo\":\"" + prazo + "\"" + repeticao + "}");
         assertThat(resposta.statusCode()).isEqualTo(CRIADO);
         return extrairId(resposta.body());
     }

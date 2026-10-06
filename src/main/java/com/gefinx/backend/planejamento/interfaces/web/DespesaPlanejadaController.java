@@ -60,7 +60,7 @@ public class DespesaPlanejadaController {
     @PostMapping
     public ResponseEntity<RespostaDespesaPlanejada> criar(@Valid @RequestBody RequisicaoDespesaPlanejada requisicao) {
         DespesaPlanejada despesa = despesaPlanejadaService.criar(
-            UsuarioAutenticado.obterId(), requisicao.descricao(), requisicao.valor(), requisicao.prazo()
+            UsuarioAutenticado.obterId(), requisicao.descricao(), requisicao.valor(), requisicao.prazo(), requisicao.recorrencia()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(RespostaDespesaPlanejada.apartirDoDominio(despesa));
     }
@@ -68,7 +68,8 @@ public class DespesaPlanejadaController {
     @PutMapping("/{id}")
     public RespostaDespesaPlanejada atualizar(@PathVariable Long id, @Valid @RequestBody RequisicaoDespesaPlanejada requisicao) {
         return RespostaDespesaPlanejada.apartirDoDominio(despesaPlanejadaService.atualizar(
-            UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.prazo()
+            UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.prazo(),
+            requisicao.recorrencia()
         ));
     }
 

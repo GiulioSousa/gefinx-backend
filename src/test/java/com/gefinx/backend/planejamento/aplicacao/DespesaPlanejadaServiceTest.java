@@ -5,6 +5,7 @@ import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
 import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
 import com.gefinx.backend.planejamento.dominio.Pagina;
+import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +58,7 @@ class DespesaPlanejadaServiceTest {
 
     @Test
     void naoAtualizaDespesaDeOutroUsuario() {
-        assertThatThrownBy(() -> servico.atualizar(OUTRO_USUARIO, DESPESA, "Outra", BigDecimal.TEN, LocalDate.now()))
+        assertThatThrownBy(() -> servico.atualizar(OUTRO_USUARIO, DESPESA, "Outra", BigDecimal.TEN, LocalDate.now(), null))
             .isInstanceOf(RecursoNaoEncontradoNoPlanejamentoException.class);
         verify(repositorio, never()).salvar(any());
     }
@@ -124,6 +126,44 @@ class DespesaPlanejadaServiceTest {
         DespesaPaga paga = new DespesaPaga(despesa, Optional.of(new PagamentoLancado(10L, BigDecimal.TEN, HOJE, "Banco", "Moradia")));
 
         assertThat(paga.pagaComAtraso()).isFalse();
+    }
+
+    @Test
+    void pagarARecorrenteColocaAProximaNoPlano() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE, USUARIO, null, Recorrencia.SEMANAL, null, null
+        )));
+        when(registroDePagamento.registrar(any(), any(), any(), any(), any(), any())).thenReturn(TRANSACAO);
+
+        servico.pagar(USUARIO, DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE, CATEGORIA, CONTA);
+
+        ArgumentCaptor<DespesaPlanejada> salvas = ArgumentCaptor.forClass(DespesaPlanejada.class);
+        verify(repositorio, times(2)).salvar(salvas.capture());
+        assertThat(salvas.getAllValues().get(0).getTransacaoId()).isEqualTo(TRANSACAO);
+        DespesaPlanejada proxima = salvas.getAllValues().get(1);
+        assertThat(proxima.getPrazo()).isEqualTo(HOJE.plusWeeks(1));
+        assertThat(proxima.getAnteriorId()).isEqualTo(DESPESA);
+    }
+
+    /** Pagamento desfeito e refeito: a sucessora gerada da primeira vez continua valendo. */
+    @Test
+    void naoGeraUmaSegundaProxima() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE, USUARIO, null, Recorrencia.SEMANAL, null, null
+        )));
+        when(repositorio.temSucessora(DESPESA)).thenReturn(true);
+
+        servico.pagar(USUARIO, DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE, CATEGORIA, CONTA);
+
+        verify(repositorio, times(1)).salvar(any());
+    }
+
+    @Test
+    void pagarAAvulsaNaoGeraProxima() {
+        servico.pagar(USUARIO, DESPESA, "Aluguel", new BigDecimal("1500.00"), HOJE, CATEGORIA, CONTA);
+
+        verify(repositorio, times(1)).salvar(any());
+        verify(repositorio, never()).temSucessora(anyLong());
     }
 
     @Test

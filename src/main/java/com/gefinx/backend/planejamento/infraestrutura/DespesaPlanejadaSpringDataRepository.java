@@ -17,6 +17,8 @@ public interface DespesaPlanejadaSpringDataRepository extends JpaRepository<Desp
 
     Page<DespesaPlanejadaJpaEntity> findByUsuarioIdAndTransacaoIdIsNotNull(Long usuarioId, Pageable paginacao);
 
+    boolean existsByAnteriorId(Long anteriorId);
+
     @Query("""
         SELECT d.transacaoId FROM DespesaPlanejadaJpaEntity d
          WHERE d.usuarioId = :usuarioId AND d.transacaoId IN :transacaoIds
