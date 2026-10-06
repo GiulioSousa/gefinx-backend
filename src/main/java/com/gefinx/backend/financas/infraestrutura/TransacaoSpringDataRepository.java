@@ -7,12 +7,15 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 public interface TransacaoSpringDataRepository extends JpaRepository<TransacaoJpaEntity, Long>, JpaSpecificationExecutor<TransacaoJpaEntity> {
 
     Optional<TransacaoJpaEntity> findByIdAndUsuarioId(Long id, Long usuarioId);
+
+    List<TransacaoJpaEntity> findByUsuarioIdAndIdIn(Long usuarioId, Collection<Long> ids);
 
     boolean existsByCategoriaId(Long categoriaId);
 

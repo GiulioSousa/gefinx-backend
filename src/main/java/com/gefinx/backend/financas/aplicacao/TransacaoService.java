@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -39,6 +41,11 @@ public class TransacaoService {
 
     public Pagina<Transacao> listar(Long usuarioId, FiltroDeTransacoes filtro, int pagina, int tamanho) {
         return repositorioTransacao.listarPorUsuario(usuarioId, filtro, pagina, tamanho);
+    }
+
+    /** Só as do usuário: um id de outro dono não é encontrado, em vez de recusado. */
+    public List<Transacao> buscarPorIds(Long usuarioId, Collection<Long> ids) {
+        return repositorioTransacao.listarPorIdsEUsuario(ids, usuarioId);
     }
 
     @Transactional

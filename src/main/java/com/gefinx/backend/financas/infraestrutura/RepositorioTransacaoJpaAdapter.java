@@ -18,6 +18,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 @Repository
@@ -67,6 +68,17 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     @Override
     public Optional<Transacao> buscarPorIdEUsuario(Long id, Long usuarioId) {
         return springDataRepository.findByIdAndUsuarioId(id, usuarioId).map(TransacaoJpaEntity::paraDominio);
+    }
+
+    /** Lista vazia não vai ao banco: {@code IN ()} é erro de sintaxe no PostgreSQL. */
+    @Override
+    public List<Transacao> listarPorIdsEUsuario(Collection<Long> ids, Long usuarioId) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return springDataRepository.findByUsuarioIdAndIdIn(usuarioId, ids).stream()
+            .map(TransacaoJpaEntity::paraDominio)
+            .toList();
     }
 
     @Override

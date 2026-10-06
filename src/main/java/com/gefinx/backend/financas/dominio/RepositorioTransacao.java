@@ -1,6 +1,7 @@
 package com.gefinx.backend.financas.dominio;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,9 @@ public interface RepositorioTransacao {
     Pagina<Transacao> listarPorUsuario(Long usuarioId, FiltroDeTransacoes filtro, int pagina, int tamanho);
 
     Optional<Transacao> buscarPorIdEUsuario(Long id, Long usuarioId);
+
+    /** As do usuário entre as informadas; id de outro dono, ou inexistente, fica de fora. */
+    List<Transacao> listarPorIdsEUsuario(Collection<Long> ids, Long usuarioId);
 
     void excluir(Long id);
 
