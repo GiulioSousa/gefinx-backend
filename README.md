@@ -252,6 +252,8 @@ Base: `http://localhost:8080/api`
 | `GET` `POST` | `/transacoes` | Bearer | lista / `201` |
 | `PUT` `DELETE` | `/transacoes/{id}` | Bearer | `200` / `204` |
 | `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, totalTransferencias, saldo}` — consolidado; `?contaId=` restringe a uma conta e `?dataInicio=`/`?dataFim=` a um período |
+| `GET` | `/relatorios/mensal?inicio=2025-11&fim=2026-10` | Bearer | um item por mês, até 24: `{mes, receitas, despesas, resultado, saldoAoFim}`; sem transferências |
+| `GET` | `/relatorios/categorias?mes=2026-10&tipo=DESPESA` | Bearer | total de cada categoria no mês, do maior para o menor; `tipo` `DESPESA` (padrão) ou `RECEITA` |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
 | `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201`; `recorrencia` opcional, `SEMANAL` ou `MENSAL`. Ler o plano põe as séries em dia: cada recorrente tem nele todas as ocorrências que vencem nos próximos 30 dias, as atrasadas inclusive |
 | `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` — só as pendentes. Na recorrente, `DELETE` tira só esta ocorrência e a série segue; com `?serie=true`, tira todas as pendentes da série, que acaba. `PUT ?serie=true` leva a mudança às outras pendentes: o prazo mudado desloca a semanal pelos mesmos dias e leva a mensal ao novo dia |

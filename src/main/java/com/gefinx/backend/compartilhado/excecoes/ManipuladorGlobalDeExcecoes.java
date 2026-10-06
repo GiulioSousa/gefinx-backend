@@ -4,6 +4,7 @@ import com.gefinx.backend.financas.dominio.excecoes.CategoriaDuplicadaException;
 import com.gefinx.backend.financas.dominio.excecoes.ContaDuplicadaException;
 import com.gefinx.backend.financas.dominio.excecoes.ContaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.CategoriaEmUsoException;
+import com.gefinx.backend.financas.dominio.excecoes.RelatorioInvalidoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoException;
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
@@ -43,8 +44,8 @@ public class ManipuladorGlobalDeExcecoes {
         return construirResposta(HttpStatus.NOT_FOUND, excecao.getMessage());
     }
 
-    @ExceptionHandler(TipoIncompativelComCategoriaException.class)
-    public ResponseEntity<ErroResposta> tratarTipoIncompativel(TipoIncompativelComCategoriaException excecao) {
+    @ExceptionHandler({TipoIncompativelComCategoriaException.class, RelatorioInvalidoException.class})
+    public ResponseEntity<ErroResposta> tratarTipoIncompativel(RuntimeException excecao) {
         return construirResposta(HttpStatus.BAD_REQUEST, excecao.getMessage());
     }
 

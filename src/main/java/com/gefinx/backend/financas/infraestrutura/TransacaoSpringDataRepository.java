@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,42 @@ public interface TransacaoSpringDataRepository extends JpaRepository<TransacaoJp
     List<TransacaoJpaEntity> findByUsuarioIdAndIdIn(Long usuarioId, Collection<Long> ids);
 
     boolean existsByCategoriaId(Long categoriaId);
+
+    /**
+     * Uma linha por (ano, mês, tipo). Só receita e despesa: transferência não é renda nem gasto.
+     * O período é fechado nas duas pontas — quem chama sempre o tem —, e por isso sem o
+     * {@code :x IS NULL OR ...} que a Etapa 21 viu tirar a data do índice.
+     */
+    @Query("""
+        SELECT extract(year from t.dataTransacao), extract(month from t.dataTransacao), t.tipo, sum(t.valor)
+          FROM TransacaoJpaEntity t
+         WHERE t.usuarioId = :usuarioId
+           AND t.dataTransacao BETWEEN :inicio AND :fim
+           AND t.tipo IN (:receita, :despesa)
+         GROUP BY extract(year from t.dataTransacao), extract(month from t.dataTransacao), t.tipo
+        """)
+    List<Object[]> somarPorMes(
+        @Param("usuarioId") Long usuarioId,
+        @Param("inicio") LocalDate inicio,
+        @Param("fim") LocalDate fim,
+        @Param("receita") TipoTransacao receita,
+        @Param("despesa") TipoTransacao despesa
+    );
+
+    @Query("""
+        SELECT t.categoriaId, sum(t.valor)
+          FROM TransacaoJpaEntity t
+         WHERE t.usuarioId = :usuarioId
+           AND t.tipo = :tipo
+           AND t.dataTransacao BETWEEN :inicio AND :fim
+         GROUP BY t.categoriaId
+        """)
+    List<Object[]> somarPorCategoria(
+        @Param("usuarioId") Long usuarioId,
+        @Param("tipo") TipoTransacao tipo,
+        @Param("inicio") LocalDate inicio,
+        @Param("fim") LocalDate fim
+    );
 
     /**
      * As duas pontas, e não só {@code conta_id}: uma conta que apenas recebeu

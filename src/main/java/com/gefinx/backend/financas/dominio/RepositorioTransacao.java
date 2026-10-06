@@ -42,6 +42,15 @@ public interface RepositorioTransacao {
     /** Assinado: o que entrou na conta por transferência menos o que saiu dela. */
     BigDecimal somarTransferenciasLiquidasDaConta(Long usuarioId, Long contaId, Periodo periodo);
 
+    /**
+     * Receitas e despesas de cada mês do período, numa consulta só. Mês sem lançamento não vem:
+     * quem monta a série é que preenche o buraco com zero.
+     */
+    List<MovimentoDoMes> somarPorMes(Long usuarioId, Periodo periodo);
+
+    /** O total de cada categoria do tipo, no período. Categoria sem lançamento não vem. */
+    List<TotalPorCategoria> somarPorCategoria(Long usuarioId, TipoTransacao tipo, Periodo periodo);
+
     /** Saldo de cada conta do usuário numa consulta só, em vez de uma por conta. */
     List<SaldoDaConta> resumirSaldoPorConta(Long usuarioId);
 

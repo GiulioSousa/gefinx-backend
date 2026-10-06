@@ -1,5 +1,7 @@
 package com.gefinx.backend.financas.infraestrutura;
 import com.gefinx.backend.financas.dominio.FiltroDeTransacoes;
+import com.gefinx.backend.financas.dominio.MovimentoDoMes;
+import com.gefinx.backend.financas.dominio.TotalPorCategoria;
 import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.RepositorioTransacao;
@@ -18,8 +20,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.Optional;
 @Repository
 public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
@@ -157,6 +162,40 @@ public class RepositorioTransacaoJpaAdapter implements RepositorioTransacao {
     @FunctionalInterface
     private interface Parcela {
         Expression<BigDecimal> de(Root<TransacaoJpaEntity> raiz, CriteriaBuilder construtor);
+    }
+
+    /**
+     * As linhas vêm uma por (mês, tipo), e aqui viram uma por mês. O período precisa das duas
+     * pontas: um relatório sem início seria uma linha por mês desde o primeiro lançamento.
+     */
+    @Override
+    public List<MovimentoDoMes> somarPorMes(Long usuarioId, Periodo periodo) {
+        exigirAsDuasPontas(periodo);
+        Map<YearMonth, BigDecimal[]> porMes = new TreeMap<>();
+        for (Object[] linha : springDataRepository.somarPorMes(
+            usuarioId, periodo.inicio(), periodo.fim(), TipoTransacao.RECEITA, TipoTransacao.DESPESA
+        )) {
+            YearMonth mes = YearMonth.of(((Number) linha[0]).intValue(), ((Number) linha[1]).intValue());
+            BigDecimal[] totais = porMes.computeIfAbsent(mes, chave -> new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO});
+            totais[linha[2] == TipoTransacao.RECEITA ? 0 : 1] = (BigDecimal) linha[3];
+        }
+        return porMes.entrySet().stream()
+            .map(entrada -> new MovimentoDoMes(entrada.getKey(), entrada.getValue()[0], entrada.getValue()[1]))
+            .toList();
+    }
+
+    @Override
+    public List<TotalPorCategoria> somarPorCategoria(Long usuarioId, TipoTransacao tipo, Periodo periodo) {
+        exigirAsDuasPontas(periodo);
+        return springDataRepository.somarPorCategoria(usuarioId, tipo, periodo.inicio(), periodo.fim()).stream()
+            .map(linha -> new TotalPorCategoria((Long) linha[0], (BigDecimal) linha[1]))
+            .toList();
+    }
+
+    private static void exigirAsDuasPontas(Periodo periodo) {
+        if (periodo.inicio() == null || periodo.fim() == null) {
+            throw new IllegalArgumentException("O agrupamento precisa de início e fim");
+        }
     }
 
     @Override
