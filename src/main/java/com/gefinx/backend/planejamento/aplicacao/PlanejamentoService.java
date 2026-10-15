@@ -22,17 +22,20 @@ import java.util.stream.Collectors;
 public class PlanejamentoService {
 
     private final RepositorioDespesaPlanejada repositorioDespesa;
+    private final DespesaPlanejadaService despesaPlanejadaService;
     private final RepositorioContasDeFora repositorioContasDeFora;
     private final FonteDeSaldo fonteDeSaldo;
     private final Clock relogio;
 
     public PlanejamentoService(
         RepositorioDespesaPlanejada repositorioDespesa,
+        DespesaPlanejadaService despesaPlanejadaService,
         RepositorioContasDeFora repositorioContasDeFora,
         FonteDeSaldo fonteDeSaldo,
         Clock relogio
     ) {
         this.repositorioDespesa = repositorioDespesa;
+        this.despesaPlanejadaService = despesaPlanejadaService;
         this.repositorioContasDeFora = repositorioContasDeFora;
         this.fonteDeSaldo = fonteDeSaldo;
         this.relogio = relogio;
@@ -52,8 +55,12 @@ public class PlanejamentoService {
      *
      * <p>Pagamento feito de uma conta de fora não entra no ajuste: ele nunca passou pelo saldo
      * do planejamento.
+     *
+     * <p>Antes de montar, as séries recorrentes são postas em dia: a ocorrência atrasada não
+     * segura a seguinte fora do plano.
      */
     public PlanoDePagamento montar(Long usuarioId) {
+        despesaPlanejadaService.colocarSeriesEmDia(usuarioId);
         LocalDate hoje = LocalDate.now(relogio);
         Set<Long> contasDeFora = repositorioContasDeFora.listarPorUsuario(usuarioId);
 

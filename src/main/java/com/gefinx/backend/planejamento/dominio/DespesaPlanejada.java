@@ -11,8 +11,8 @@ import java.time.LocalDate;
  * <p>Paga é a que tem {@code transacaoId}: a transação é a prova do pagamento. Excluí-la
  * desfaz a ligação no banco, e a despesa volta ao planejamento.
  *
- * <p>Com {@code recorrencia}, ela é uma ocorrência de uma despesa que se repete, e paga gera a
- * seguinte ({@link #proxima()}). {@code diaDoVencimento} é a âncora do mensal — ver a V14 — e
+ * <p>Com {@code recorrencia}, ela é uma ocorrência de uma despesa que se repete, e paga — ou
+ * atrasada — gera a seguinte ({@link #proxima()}). {@code diaDoVencimento} é a âncora do mensal — ver a V14 — e
  * {@code anteriorId}, a ocorrência que a gerou.
  */
 public class DespesaPlanejada {
@@ -99,6 +99,16 @@ public class DespesaPlanejada {
     /** De volta às pendentes, com tudo o mais como estava. */
     public DespesaPlanejada semPagamento() {
         return pagaCom(null);
+    }
+
+    /** A série acaba nesta: nem paga, nem atrasada, ela gera a seguinte. */
+    public DespesaPlanejada semRecorrencia() {
+        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId);
+    }
+
+    /** Mesma regra da situação {@code ATRASADA} do plano: o dia do prazo ainda está em dia. */
+    public boolean estaAtrasadaEm(LocalDate hoje) {
+        return prazo.isBefore(hoje);
     }
 
     /**

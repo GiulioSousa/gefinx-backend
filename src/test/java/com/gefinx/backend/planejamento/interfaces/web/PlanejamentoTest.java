@@ -19,6 +19,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -444,6 +446,60 @@ class PlanejamentoTest {
         assertThat(desfazer(pendente, token).statusCode()).isEqualTo(NAO_ENCONTRADO);
         assertThat(desfazer(paga, criarUsuarioEObterToken()).statusCode()).isEqualTo(NAO_ENCONTRADO);
         assertThat(contarDespesasLancadas()).isEqualTo(1);
+    }
+
+    /** Dez dias de atraso numa semanal: a atrasada, a que também já venceu e a próxima em dia. */
+    @Test
+    void aAtrasadaQueSeRepetePoeAsSeguintesNoPlano() {
+        criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(10), "SEMANAL");
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+
+        assertThat(itens).extracting(item -> item.get("prazo").asString())
+            .containsExactly(hoje.minusDays(10).toString(), hoje.minusDays(3).toString(), hoje.plusDays(4).toString());
+        assertThat(obter("/api/planejamento").get("itens")).as("ler de novo não gera mais").hasSize(3);
+    }
+
+    /** Duas leituras ao mesmo tempo: a trava faz a segunda esperar e achar a próxima já gerada. */
+    @Test
+    void leiturasSimultaneasNaoDuplicamAProxima() throws Exception {
+        criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(3), "SEMANAL");
+
+        List<CompletableFuture<HttpResponse<String>>> leituras = List.of(
+            CompletableFuture.supplyAsync(() -> enviar("GET", "/api/planejamento", token, null)),
+            CompletableFuture.supplyAsync(() -> enviar("GET", "/api/despesas-planejadas", token, null))
+        );
+
+        for (CompletableFuture<HttpResponse<String>> leitura : leituras) {
+            assertThat(leitura.get().statusCode()).isEqualTo(OK);
+        }
+        assertThat(obter("/api/planejamento").get("itens")).hasSize(2);
+    }
+
+    /** Excluída a última, a atrasada antes dela deixa de se repetir — senão a geraria de novo. */
+    @Test
+    void excluirAUltimaEncerraASerie() {
+        long atrasada = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(3), "SEMANAL");
+        long proxima = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
+
+        assertThat(enviar("DELETE", "/api/despesas-planejadas/" + proxima, token, null).statusCode()).isEqualTo(SEM_CONTEUDO);
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("id").asLong()).isEqualTo(atrasada);
+        assertThat(itens.get(0).get("recorrencia").isNull()).isTrue();
+    }
+
+    @Test
+    void desfazerDaAtrasadaMantemAProxima() {
+        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(2), "SEMANAL");
+        pagar(despesa, banco, categoriaDespesa, "600.00");
+
+        HttpResponse<String> resposta = desfazer(despesa, token);
+
+        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("MANTIDA_PELO_ATRASO");
+        assertThat(obter("/api/planejamento").get("itens")).extracting(item -> item.get("prazo").asString())
+            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString());
     }
 
     @Test

@@ -253,11 +253,11 @@ Base: `http://localhost:8080/api`
 | `PUT` `DELETE` | `/transacoes/{id}` | Bearer | `200` / `204` |
 | `GET` | `/saldo` | Bearer | `{totalReceitas, totalDespesas, totalTransferencias, saldo}` — consolidado; `?contaId=` restringe a uma conta e `?dataInicio=`/`?dataFim=` a um período |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
-| `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201`; `recorrencia` opcional, `SEMANAL` ou `MENSAL` |
+| `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201`; `recorrencia` opcional, `SEMANAL` ou `MENSAL`. Ler o plano põe as séries em dia: a ocorrência atrasada não segura a seguinte fora dele |
 | `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` — só as pendentes |
 | `POST` | `/despesas-planejadas/{id}/pagamento` | Bearer | `201` + `{transacaoId}` — lança a despesa em finanças e tira a planejada do plano; excluir a transação a devolve. Se ela se repete, a próxima entra no plano, com o mesmo valor |
 | `GET` | `/despesas-planejadas/pagas` | Bearer | histórico paginado (`pagina`, `tamanho` ≤ 100), do prazo mais recente: o planejado ao lado do pago, com data, conta, categoria e `pagaComAtraso` |
-| `DELETE` | `/despesas-planejadas/{id}/pagamento` | Bearer | `200` + `{proxima}` — exclui a transação e devolve a despesa ao plano; a próxima ocorrência sai junto se ainda está como nasceu (`REMOVIDA`), fica se foi editada (`MANTIDA`); `409` se ela já foi paga |
+| `DELETE` | `/despesas-planejadas/{id}/pagamento` | Bearer | `200` + `{proxima}` — exclui a transação e devolve a despesa ao plano; a próxima ocorrência sai junto se ainda está como nasceu (`REMOVIDA`), fica se foi editada (`MANTIDA`) ou se a despesa volta atrasada (`MANTIDA_PELO_ATRASO`); `409` se ela já foi paga |
 | `GET` | `/planejamento` | Bearer | o plano do dia: saldo de ontem e de agora, ganho de hoje, meta diária e, por despesa, o que falta e quanto ganhar por dia |
 | `GET` `PUT` | `/planejamento/contas` | Bearer | as contas, cada uma com `entraNoPlanejamento`; o `PUT` recebe `{contasDeFora: [ids]}` — a escolha inteira |
 

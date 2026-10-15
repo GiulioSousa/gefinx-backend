@@ -1,5 +1,6 @@
 package com.gefinx.backend.planejamento.dominio;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +25,13 @@ public interface RepositorioDespesaPlanejada {
      * contextos numa consulta só.
      */
     Pagina<DespesaPlanejada> listarPagasPorUsuario(Long usuarioId, int pagina, int tamanho);
+
+    /**
+     * As pendentes que se repetem e cujo prazo ficou antes de {@code hoje}, por id, travadas até
+     * o fim da transação: duas leituras do plano ao mesmo tempo esperam uma pela outra, e a
+     * segunda encontra a próxima que a primeira gerou.
+     */
+    List<DespesaPlanejada> travarAtrasadasQueSeRepetem(Long usuarioId, LocalDate hoje);
 
     /** Se alguma ocorrência já foi gerada a partir desta. */
     boolean temSucessora(Long id);

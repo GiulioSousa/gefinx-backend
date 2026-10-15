@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +55,13 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
             tamanho,
             resultado.getTotalElements()
         );
+    }
+
+    @Override
+    public List<DespesaPlanejada> travarAtrasadasQueSeRepetem(Long usuarioId, LocalDate hoje) {
+        return springDataRepository.travarAtrasadasQueSeRepetem(usuarioId, hoje).stream()
+            .map(DespesaPlanejadaJpaEntity::paraDominio)
+            .toList();
     }
 
     @Override

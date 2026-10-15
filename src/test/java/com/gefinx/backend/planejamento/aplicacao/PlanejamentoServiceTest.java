@@ -5,6 +5,7 @@ import com.gefinx.backend.planejamento.dominio.DespesaLancada;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
 import com.gefinx.backend.planejamento.dominio.PlanoDePagamento;
+import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioContasDeFora;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -138,8 +139,10 @@ class PlanejamentoServiceTest {
     }
 
     private PlanejamentoService servicoEm(Instant instante) {
-        return new PlanejamentoService(
-            repositorioDespesa, repositorioContasDeFora, fonteDeSaldo, Clock.fixed(instante, SAO_PAULO)
+        Clock relogio = Clock.fixed(instante, SAO_PAULO);
+        DespesaPlanejadaService despesas = new DespesaPlanejadaService(
+            repositorioDespesa, mock(RegistroDePagamento.class), fonteDeSaldo, relogio
         );
+        return new PlanejamentoService(repositorioDespesa, despesas, repositorioContasDeFora, fonteDeSaldo, relogio);
     }
 }

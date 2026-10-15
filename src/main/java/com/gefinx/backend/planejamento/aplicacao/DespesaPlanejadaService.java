@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -34,19 +35,47 @@ public class DespesaPlanejadaService {
     private final RepositorioDespesaPlanejada repositorio;
     private final RegistroDePagamento registroDePagamento;
     private final FonteDeSaldo fonteDeSaldo;
+    private final Clock relogio;
 
     public DespesaPlanejadaService(
         RepositorioDespesaPlanejada repositorio,
         RegistroDePagamento registroDePagamento,
-        FonteDeSaldo fonteDeSaldo
+        FonteDeSaldo fonteDeSaldo,
+        Clock relogio
     ) {
         this.repositorio = repositorio;
         this.registroDePagamento = registroDePagamento;
         this.fonteDeSaldo = fonteDeSaldo;
+        this.relogio = relogio;
     }
 
+    @Transactional
     public List<DespesaPlanejada> listar(Long usuarioId) {
+        colocarSeriesEmDia(usuarioId);
         return repositorio.listarPendentesPorUsuario(usuarioId);
+    }
+
+    /**
+     * A ocorrência que passou do prazo sem ser paga não segura a série: a seguinte entra no plano
+     * assim mesmo — o aluguel de 08/10 atrasado não esconde o de 15/10, que vence de qualquer
+     * jeito. Com várias semanas de atraso, entram todas as que já venceram e a primeira que não,
+     * cada uma devida por si.
+     *
+     * <p>Roda na leitura do plano, e não num agendador: é quando alguém olha que o plano precisa
+     * estar certo, e um servidor desligado à meia-noite não perde nada. A trava das atrasadas
+     * faz duas leituras simultâneas esperarem uma pela outra; a segunda confere de novo se a
+     * próxima existe — o {@code UNIQUE} de {@code anterior_id} recusaria a duplicata, mas como
+     * erro.
+     */
+    @Transactional
+    public void colocarSeriesEmDia(Long usuarioId) {
+        LocalDate hoje = LocalDate.now(relogio);
+        for (DespesaPlanejada atrasada : repositorio.travarAtrasadasQueSeRepetem(usuarioId, hoje)) {
+            DespesaPlanejada ultima = atrasada;
+            while (ultima.estaAtrasadaEm(hoje) && !repositorio.temSucessora(ultima.getId())) {
+                ultima = repositorio.salvar(ultima.proxima());
+            }
+        }
     }
 
     /**
@@ -87,9 +116,19 @@ public class DespesaPlanejadaService {
         return repositorio.salvar(existente.editada(descricao, valor, prazo, recorrencia));
     }
 
+    /**
+     * Excluir uma ocorrência encerra a série nela. Se a anterior ainda está pendente, ela deixa
+     * de se repetir: atrasada e sem a próxima, ela geraria de novo, na leitura seguinte, a
+     * ocorrência que acabou de ser excluída.
+     */
     @Transactional
     public void excluir(Long usuarioId, Long id) {
-        buscarOuLancar(usuarioId, id);
+        DespesaPlanejada despesa = buscarOuLancar(usuarioId, id);
+        if (despesa.getAnteriorId() != null) {
+            repositorio.buscarPendentePorIdEUsuario(despesa.getAnteriorId(), usuarioId)
+                .filter(DespesaPlanejada::seRepete)
+                .ifPresent(anterior -> repositorio.salvar(anterior.semRecorrencia()));
+        }
         repositorio.excluir(id);
     }
 
@@ -130,7 +169,9 @@ public class DespesaPlanejadaService {
      * O caminho de volta do {@link #pagar}, numa transação de banco só: a transação de pagamento
      * é excluída, a despesa volta ao plano, e a próxima ocorrência que este pagamento gerou sai
      * junto — se ainda estiver como nasceu. Editada, ela fica: alguém já a ajustou, e só essa
-     * pessoa sabe se ainda vale.
+     * pessoa sabe se ainda vale. Também fica se a despesa volta atrasada: ela teria a próxima no
+     * plano de qualquer jeito ({@link #colocarSeriesEmDia}), e excluí-la só para gerá-la de novo
+     * soltaria as que vieram depois dela.
      *
      * <p>Se a próxima já foi paga, nada muda: desfazer só esta deixaria duas ocorrências da
      * mesma série com o calendário fora de ordem. Desfaz-se primeiro a mais recente.
@@ -155,6 +196,9 @@ public class DespesaPlanejadaService {
 
         if (sucessora.isEmpty()) {
             return DesfechoDaProxima.NENHUMA;
+        }
+        if (paga.estaAtrasadaEm(LocalDate.now(relogio))) {
+            return DesfechoDaProxima.MANTIDA_PELO_ATRASO;
         }
         if (paga.gerouSemMudancas(sucessora.get())) {
             repositorio.excluir(sucessora.get().getId());

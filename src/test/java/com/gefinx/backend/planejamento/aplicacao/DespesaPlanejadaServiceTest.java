@@ -17,9 +17,12 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,6 +46,7 @@ class DespesaPlanejadaServiceTest {
     private static final Long CONTA = 8L;
     private static final Long TRANSACAO = 99L;
     private static final LocalDate HOJE = LocalDate.of(2026, 9, 28);
+    private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
     private RepositorioDespesaPlanejada repositorio;
     private RegistroDePagamento registroDePagamento;
@@ -54,7 +58,10 @@ class DespesaPlanejadaServiceTest {
         repositorio = mock(RepositorioDespesaPlanejada.class);
         registroDePagamento = mock(RegistroDePagamento.class);
         fonteDeSaldo = mock(FonteDeSaldo.class);
-        servico = new DespesaPlanejadaService(repositorio, registroDePagamento, fonteDeSaldo);
+        servico = new DespesaPlanejadaService(
+            repositorio, registroDePagamento, fonteDeSaldo,
+            Clock.fixed(HOJE.atStartOfDay(SAO_PAULO).plusHours(12).toInstant(), SAO_PAULO)
+        );
         when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(
             new DespesaPlanejada(DESPESA, "Aluguel", new BigDecimal("1500.00"), LocalDate.of(2026, 10, 10), USUARIO)
         ));
@@ -200,10 +207,85 @@ class DespesaPlanejadaServiceTest {
         ordem.verify(registroDePagamento).desfazer(USUARIO, TRANSACAO);
     }
 
+    /** Três semanas de atraso: entram as duas que também já venceram e a primeira que não. */
+    @Test
+    void aAtrasadaQueSeRepetePoeAsSeguintesNoPlano() {
+        DespesaPlanejada atrasada = new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE.minusDays(15), USUARIO, null, Recorrencia.SEMANAL, null, null
+        );
+        when(repositorio.travarAtrasadasQueSeRepetem(USUARIO, HOJE)).thenReturn(List.of(atrasada));
+        salvarDandoId();
+
+        servico.colocarSeriesEmDia(USUARIO);
+
+        ArgumentCaptor<DespesaPlanejada> salvas = ArgumentCaptor.forClass(DespesaPlanejada.class);
+        verify(repositorio, times(3)).salvar(salvas.capture());
+        assertThat(salvas.getAllValues()).extracting(DespesaPlanejada::getPrazo)
+            .containsExactly(HOJE.minusDays(8), HOJE.minusDays(1), HOJE.plusDays(6));
+        assertThat(salvas.getAllValues().get(0).getAnteriorId()).isEqualTo(DESPESA);
+    }
+
+    /** A que já tem a seguinte — paga antes e desfeita, ou posta em dia noutra leitura — não gera outra. */
+    @Test
+    void aAtrasadaComAProximaNaoGeraOutra() {
+        DespesaPlanejada atrasada = new DespesaPlanejada(
+            DESPESA, "Luz", BigDecimal.TEN, HOJE.minusDays(3), USUARIO, null, Recorrencia.MENSAL, 25, null
+        );
+        when(repositorio.travarAtrasadasQueSeRepetem(USUARIO, HOJE)).thenReturn(List.of(atrasada));
+        when(repositorio.temSucessora(DESPESA)).thenReturn(true);
+
+        servico.colocarSeriesEmDia(USUARIO);
+
+        verify(repositorio, never()).salvar(any());
+    }
+
+    /** Sem isso, a anterior atrasada geraria de novo, na leitura seguinte, a que foi excluída. */
+    @Test
+    void excluirEncerraASerieNaAnteriorPendente() {
+        DespesaPlanejada anterior = new DespesaPlanejada(
+            4L, "Aluguel do carro", BigDecimal.TEN, HOJE.minusDays(2), USUARIO, null, Recorrencia.SEMANAL, null, null
+        );
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE.plusDays(5), USUARIO, null, Recorrencia.SEMANAL, null, 4L
+        )));
+        when(repositorio.buscarPendentePorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(anterior));
+
+        servico.excluir(USUARIO, DESPESA);
+
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(4L) && !despesa.seRepete()));
+        verify(repositorio).excluir(DESPESA);
+    }
+
+    /** Desfeita, ela volta atrasada: a próxima fica, porque a atrasada a teria de qualquer jeito. */
+    @Test
+    void desfazerDaAtrasadaMantemAProxima() {
+        DespesaPlanejada paga = new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE.minusDays(1), USUARIO, TRANSACAO, Recorrencia.SEMANAL, null, null
+        );
+        when(repositorio.buscarPagaPorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(paga));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(paga.semPagamento().proxima()));
+
+        assertThat(servico.desfazerPagamento(USUARIO, DESPESA)).isEqualTo(DesfechoDaProxima.MANTIDA_PELO_ATRASO);
+        verify(repositorio, never()).excluir(anyLong());
+    }
+
     @Test
     void excluiADoProprioUsuario() {
         servico.excluir(USUARIO, DESPESA);
 
         verify(repositorio).excluir(DESPESA);
+    }
+
+    /** O que o banco faria: grava e devolve com id. */
+    private void salvarDandoId() {
+        AtomicLong proximoId = new AtomicLong(100);
+        when(repositorio.salvar(any())).thenAnswer(chamada -> {
+            DespesaPlanejada despesa = chamada.getArgument(0);
+            return new DespesaPlanejada(
+                proximoId.getAndIncrement(), despesa.getDescricao(), despesa.getValor(), despesa.getPrazo(),
+                despesa.getUsuarioId(), despesa.getTransacaoId(), despesa.getRecorrencia(), despesa.getDiaDoVencimento(),
+                despesa.getAnteriorId()
+            );
+        });
     }
 }
