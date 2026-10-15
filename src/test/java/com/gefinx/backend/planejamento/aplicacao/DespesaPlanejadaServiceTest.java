@@ -207,22 +207,35 @@ class DespesaPlanejadaServiceTest {
         ordem.verify(registroDePagamento).desfazer(USUARIO, TRANSACAO);
     }
 
-    /** Três semanas de atraso: entram as duas que também já venceram e a primeira que não. */
+    /** Duas semanas de atraso: entram as que também já venceram e as dos próximos 30 dias, e nenhuma depois. */
     @Test
     void aAtrasadaQueSeRepetePoeAsSeguintesNoPlano() {
         DespesaPlanejada atrasada = new DespesaPlanejada(
             DESPESA, "Aluguel do carro", new BigDecimal("600.00"), HOJE.minusDays(15), USUARIO, null, Recorrencia.SEMANAL, null, null
         );
-        when(repositorio.travarAtrasadasQueSeRepetem(USUARIO, HOJE)).thenReturn(List.of(atrasada));
+        when(repositorio.travarQueSeRepetemAte(USUARIO, HOJE.plusDays(30))).thenReturn(List.of(atrasada));
         salvarDandoId();
 
         servico.colocarSeriesEmDia(USUARIO);
 
         ArgumentCaptor<DespesaPlanejada> salvas = ArgumentCaptor.forClass(DespesaPlanejada.class);
-        verify(repositorio, times(3)).salvar(salvas.capture());
+        verify(repositorio, times(6)).salvar(salvas.capture());
         assertThat(salvas.getAllValues()).extracting(DespesaPlanejada::getPrazo)
-            .containsExactly(HOJE.minusDays(8), HOJE.minusDays(1), HOJE.plusDays(6));
+            .containsExactly(HOJE.minusDays(8), HOJE.minusDays(1), HOJE.plusDays(6), HOJE.plusDays(13), HOJE.plusDays(20), HOJE.plusDays(27));
         assertThat(salvas.getAllValues().get(0).getAnteriorId()).isEqualTo(DESPESA);
+    }
+
+    /** A mensal deste mês não traz a do mês que vem antes de ela entrar nos 30 dias. */
+    @Test
+    void aSeguinteForaDosTrintaDiasNaoEntraAinda() {
+        DespesaPlanejada luz = new DespesaPlanejada(
+            DESPESA, "Luz", BigDecimal.TEN, HOJE.plusDays(5), USUARIO, null, Recorrencia.MENSAL, 3, null
+        );
+        when(repositorio.travarQueSeRepetemAte(USUARIO, HOJE.plusDays(30))).thenReturn(List.of(luz));
+
+        servico.colocarSeriesEmDia(USUARIO);
+
+        verify(repositorio, never()).salvar(any());
     }
 
     /** A que já tem a seguinte — paga antes e desfeita, ou posta em dia noutra leitura — não gera outra. */
@@ -231,7 +244,7 @@ class DespesaPlanejadaServiceTest {
         DespesaPlanejada atrasada = new DespesaPlanejada(
             DESPESA, "Luz", BigDecimal.TEN, HOJE.minusDays(3), USUARIO, null, Recorrencia.MENSAL, 25, null
         );
-        when(repositorio.travarAtrasadasQueSeRepetem(USUARIO, HOJE)).thenReturn(List.of(atrasada));
+        when(repositorio.travarQueSeRepetemAte(USUARIO, HOJE.plusDays(30))).thenReturn(List.of(atrasada));
         when(repositorio.temSucessora(DESPESA)).thenReturn(true);
 
         servico.colocarSeriesEmDia(USUARIO);
@@ -314,7 +327,7 @@ class DespesaPlanejadaServiceTest {
         verify(repositorio, never()).salvar(argThat(despesa -> despesa.getId().equals(4L)));
     }
 
-    /** Desfeita, ela volta atrasada: a próxima fica, porque a atrasada a teria de qualquer jeito. */
+    /** A próxima vence nos 30 dias do plano: fica, porque a desfeita a teria de qualquer jeito. */
     @Test
     void desfazerDaAtrasadaMantemAProxima() {
         DespesaPlanejada paga = new DespesaPlanejada(
@@ -323,7 +336,7 @@ class DespesaPlanejadaServiceTest {
         when(repositorio.buscarPagaPorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(paga));
         when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(paga.semPagamento().proxima()));
 
-        assertThat(servico.desfazerPagamento(USUARIO, DESPESA)).isEqualTo(DesfechoDaProxima.MANTIDA_PELO_ATRASO);
+        assertThat(servico.desfazerPagamento(USUARIO, DESPESA)).isEqualTo(DesfechoDaProxima.MANTIDA_NO_PERIODO);
         verify(repositorio, never()).excluir(anyLong());
     }
 

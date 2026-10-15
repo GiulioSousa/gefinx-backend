@@ -27,11 +27,11 @@ public interface RepositorioDespesaPlanejada {
     Pagina<DespesaPlanejada> listarPagasPorUsuario(Long usuarioId, int pagina, int tamanho);
 
     /**
-     * As pendentes que se repetem e cujo prazo ficou antes de {@code hoje}, por id, travadas até
-     * o fim da transação: duas leituras do plano ao mesmo tempo esperam uma pela outra, e a
-     * segunda encontra a próxima que a primeira gerou.
+     * As pendentes que se repetem e vencem até {@code limite}, por id, travadas até o fim da
+     * transação: duas leituras do plano ao mesmo tempo esperam uma pela outra, e a segunda
+     * encontra a próxima que a primeira gerou.
      */
-    List<DespesaPlanejada> travarAtrasadasQueSeRepetem(Long usuarioId, LocalDate hoje);
+    List<DespesaPlanejada> travarQueSeRepetemAte(Long usuarioId, LocalDate limite);
 
     /** Se alguma ocorrência já foi gerada a partir desta. */
     boolean temSucessora(Long id);

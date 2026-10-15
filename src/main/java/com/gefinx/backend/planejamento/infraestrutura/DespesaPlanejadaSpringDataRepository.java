@@ -24,10 +24,10 @@ public interface DespesaPlanejadaSpringDataRepository extends JpaRepository<Desp
     @Query("""
         SELECT d FROM DespesaPlanejadaJpaEntity d
          WHERE d.usuarioId = :usuarioId AND d.transacaoId IS NULL
-           AND d.recorrencia IS NOT NULL AND d.prazo < :hoje
+           AND d.recorrencia IS NOT NULL AND d.prazo <= :limite
          ORDER BY d.id
         """)
-    List<DespesaPlanejadaJpaEntity> travarAtrasadasQueSeRepetem(Long usuarioId, LocalDate hoje);
+    List<DespesaPlanejadaJpaEntity> travarQueSeRepetemAte(Long usuarioId, LocalDate limite);
 
     boolean existsByAnteriorId(Long anteriorId);
 

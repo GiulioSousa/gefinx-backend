@@ -14,10 +14,16 @@ import java.time.temporal.ChronoUnit;
  * desfaz a ligação no banco, e a despesa volta ao planejamento.
  *
  * <p>Com {@code recorrencia}, ela é uma ocorrência de uma despesa que se repete, e paga — ou
- * atrasada — gera a seguinte ({@link #proxima()}). {@code diaDoVencimento} é a âncora do mensal — ver a V14 — e
+ * dentro dos {@link #DIAS_A_FRENTE} do plano — gera a seguinte ({@link #proxima()}). {@code diaDoVencimento} é a âncora do mensal — ver a V14 — e
  * {@code anteriorId}, a ocorrência que a gerou.
  */
 public class DespesaPlanejada {
+
+    /**
+     * Quantos dias à frente o plano mostra de cada série recorrente: todas as ocorrências que
+     * vencem até lá. Um mês de contas à vista, e a meta diária contando com elas.
+     */
+    public static final int DIAS_A_FRENTE = 30;
 
     private final Long id;
     private final String descricao;
@@ -141,9 +147,17 @@ public class DespesaPlanejada {
         return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId);
     }
 
-    /** Mesma regra da situação {@code ATRASADA} do plano: o dia do prazo ainda está em dia. */
-    public boolean estaAtrasadaEm(LocalDate hoje) {
-        return prazo.isBefore(hoje);
+    /**
+     * Se o plano a mostra, contando de {@code hoje}: vence até {@link #DIAS_A_FRENTE} dias
+     * adiante — as atrasadas inclusive.
+     */
+    public boolean entraNoPlanoEm(LocalDate hoje) {
+        return !prazo.isAfter(hoje.plusDays(DIAS_A_FRENTE));
+    }
+
+    /** Se a ocorrência seguinte a esta já tem lugar no plano de {@code hoje}. */
+    public boolean temAProximaNoPlanoEm(LocalDate hoje) {
+        return seRepete() && proxima().entraNoPlanoEm(hoje);
     }
 
     /**

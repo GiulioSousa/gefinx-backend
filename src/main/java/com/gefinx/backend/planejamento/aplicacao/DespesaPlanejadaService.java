@@ -57,10 +57,10 @@ public class DespesaPlanejadaService {
     }
 
     /**
-     * A ocorrência que passou do prazo sem ser paga não segura a série: a seguinte entra no plano
-     * assim mesmo — o aluguel de 08/10 atrasado não esconde o de 15/10, que vence de qualquer
-     * jeito. Com várias semanas de atraso, entram todas as que já venceram e a primeira que não,
-     * cada uma devida por si.
+     * Cada série recorrente tem no plano todas as ocorrências que vencem nos próximos
+     * {@link DespesaPlanejada#DIAS_A_FRENTE} dias, e não só a atual: o aluguel semanal mostra as
+     * quatro ou cinco semanas do mês, e a meta diária conta com elas. A atrasada não segura a
+     * série — o aluguel de 08/10 atrasado não esconde o de 15/10, que vence de qualquer jeito.
      *
      * <p>Roda na leitura do plano, e não num agendador: é quando alguém olha que o plano precisa
      * estar certo, e um servidor desligado à meia-noite não perde nada. A trava das atrasadas
@@ -71,9 +71,10 @@ public class DespesaPlanejadaService {
     @Transactional
     public void colocarSeriesEmDia(Long usuarioId) {
         LocalDate hoje = LocalDate.now(relogio);
-        for (DespesaPlanejada atrasada : repositorio.travarAtrasadasQueSeRepetem(usuarioId, hoje)) {
-            DespesaPlanejada ultima = atrasada;
-            while (ultima.estaAtrasadaEm(hoje) && !repositorio.temSucessora(ultima.getId())) {
+        LocalDate limite = hoje.plusDays(DespesaPlanejada.DIAS_A_FRENTE);
+        for (DespesaPlanejada noPlano : repositorio.travarQueSeRepetemAte(usuarioId, limite)) {
+            DespesaPlanejada ultima = noPlano;
+            while (ultima.temAProximaNoPlanoEm(hoje) && !repositorio.temSucessora(ultima.getId())) {
                 ultima = repositorio.salvar(ultima.proxima());
             }
         }
@@ -226,8 +227,8 @@ public class DespesaPlanejadaService {
      * O caminho de volta do {@link #pagar}, numa transação de banco só: a transação de pagamento
      * é excluída, a despesa volta ao plano, e a próxima ocorrência que este pagamento gerou sai
      * junto — se ainda estiver como nasceu. Editada, ela fica: alguém já a ajustou, e só essa
-     * pessoa sabe se ainda vale. Também fica se a despesa volta atrasada: ela teria a próxima no
-     * plano de qualquer jeito ({@link #colocarSeriesEmDia}), e excluí-la só para gerá-la de novo
+     * pessoa sabe se ainda vale. Também fica se ela vence dentro dos dias que o plano mostra: ali a
+     * despesa a teria de qualquer jeito ({@link #colocarSeriesEmDia}), e excluí-la só para gerá-la de novo
      * soltaria as que vieram depois dela.
      *
      * <p>Se a próxima já foi paga, nada muda: desfazer só esta deixaria duas ocorrências da
@@ -254,8 +255,8 @@ public class DespesaPlanejadaService {
         if (sucessora.isEmpty()) {
             return DesfechoDaProxima.NENHUMA;
         }
-        if (paga.estaAtrasadaEm(LocalDate.now(relogio))) {
-            return DesfechoDaProxima.MANTIDA_PELO_ATRASO;
+        if (paga.temAProximaNoPlanoEm(LocalDate.now(relogio))) {
+            return DesfechoDaProxima.MANTIDA_NO_PERIODO;
         }
         if (paga.gerouSemMudancas(sucessora.get())) {
             repositorio.excluir(sucessora.get().getId());

@@ -333,7 +333,7 @@ class PlanejamentoTest {
 
     @Test
     void pagarARecorrenteColocaAProximaNoPlano() {
-        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(2), "SEMANAL");
+        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(25), "SEMANAL");
 
         pagar(despesa, banco, categoriaDespesa, "600.00");
 
@@ -343,7 +343,7 @@ class PlanejamentoTest {
         assertThat(proxima.get("id").asLong()).isNotEqualTo(despesa);
         assertThat(proxima.get("descricao").asString()).isEqualTo("Aluguel do carro");
         assertThat(proxima.get("valor").decimalValue()).isEqualByComparingTo("600.00");
-        assertThat(proxima.get("prazo").asString()).isEqualTo(hoje.plusDays(9).toString());
+        assertThat(proxima.get("prazo").asString()).isEqualTo(hoje.plusDays(32).toString());
         assertThat(proxima.get("recorrencia").asString()).isEqualTo("SEMANAL");
         assertThat(obter("/api/despesas-planejadas/pagas").get("itens").get(0).get("id").asLong()).isEqualTo(despesa);
     }
@@ -351,7 +351,7 @@ class PlanejamentoTest {
     /** Desfeito o pagamento, a despesa volta; paga de novo, não nasce uma segunda sucessora. */
     @Test
     void desfazerERefazerOPagamentoNaoDuplicaAProxima() {
-        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(5), "MENSAL");
         long transacao = objectMapper.readTree(pagar(despesa, banco, categoriaDespesa, "150.00").body())
             .get("transacaoId").asLong();
 
@@ -361,15 +361,15 @@ class PlanejamentoTest {
         pagar(despesa, banco, categoriaDespesa, "150.00");
         JsonNode itens = obter("/api/planejamento").get("itens");
         assertThat(itens).hasSize(1);
-        assertThat(itens.get(0).get("prazo").asString()).isEqualTo(hoje.plusDays(2).plusMonths(1).toString());
+        assertThat(itens.get(0).get("prazo").asString()).isEqualTo(hoje.plusDays(5).plusMonths(1).toString());
     }
 
     /** Tirar a recorrência encerra a série: paga, a despesa não gera a seguinte. */
     @Test
     void semARecorrenciaOPagamentoNaoGeraProxima() {
-        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(5), "MENSAL");
         HttpResponse<String> edicao = enviar("PUT", "/api/despesas-planejadas/" + despesa, token,
-            "{\"descricao\":\"Luz\",\"valor\":150.00,\"prazo\":\"" + hoje.plusDays(2) + "\",\"recorrencia\":null}");
+            "{\"descricao\":\"Luz\",\"valor\":150.00,\"prazo\":\"" + hoje.plusDays(5) + "\",\"recorrencia\":null}");
         assertThat(edicao.statusCode()).isEqualTo(OK);
         assertThat(objectMapper.readTree(edicao.body()).get("recorrencia").isNull()).isTrue();
 
@@ -396,7 +396,7 @@ class PlanejamentoTest {
 
     @Test
     void desfazerARecorrenteTiraDoPlanoAProximaComoNasceu() {
-        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(2), "SEMANAL");
+        long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.plusDays(25), "SEMANAL");
         pagar(despesa, banco, categoriaDespesa, "600.00");
 
         HttpResponse<String> resposta = desfazer(despesa, token);
@@ -410,11 +410,11 @@ class PlanejamentoTest {
     /** Editada, a próxima fica: quem a ajustou decide se ainda vale. */
     @Test
     void desfazerMantemAProximaJaEditada() {
-        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(2), "MENSAL");
+        long despesa = criarDespesa("Luz", "150.00", hoje.plusDays(5), "MENSAL");
         pagar(despesa, banco, categoriaDespesa, "150.00");
         long proxima = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
         enviar("PUT", "/api/despesas-planejadas/" + proxima, token,
-            "{\"descricao\":\"Luz\",\"valor\":180.00,\"prazo\":\"" + hoje.plusDays(2).plusMonths(1) + "\",\"recorrencia\":\"MENSAL\"}");
+            "{\"descricao\":\"Luz\",\"valor\":180.00,\"prazo\":\"" + hoje.plusDays(5).plusMonths(1) + "\",\"recorrencia\":\"MENSAL\"}");
 
         HttpResponse<String> resposta = desfazer(despesa, token);
 
@@ -424,7 +424,7 @@ class PlanejamentoTest {
 
     @Test
     void naoDesfazQuandoAProximaJaFoiPaga() {
-        long despesa = criarDespesa("Aluguel do carro", "100.00", hoje.plusDays(2), "SEMANAL");
+        long despesa = criarDespesa("Aluguel do carro", "100.00", hoje.plusDays(25), "SEMANAL");
         pagar(despesa, banco, categoriaDespesa, "100.00");
         long proxima = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
         pagar(proxima, banco, categoriaDespesa, "100.00");
@@ -448,7 +448,7 @@ class PlanejamentoTest {
         assertThat(contarDespesasLancadas()).isEqualTo(1);
     }
 
-    /** Dez dias de atraso numa semanal: a atrasada, a que também já venceu e a próxima em dia. */
+    /** Dez dias de atraso numa semanal: a atrasada, a que também já venceu e as que vencem nos próximos 30 dias. */
     @Test
     void aAtrasadaQueSeRepetePoeAsSeguintesNoPlano() {
         criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(10), "SEMANAL");
@@ -456,8 +456,8 @@ class PlanejamentoTest {
         JsonNode itens = obter("/api/planejamento").get("itens");
 
         assertThat(itens).extracting(item -> item.get("prazo").asString())
-            .containsExactly(hoje.minusDays(10).toString(), hoje.minusDays(3).toString(), hoje.plusDays(4).toString());
-        assertThat(obter("/api/planejamento").get("itens")).as("ler de novo não gera mais").hasSize(3);
+            .containsExactly(hoje.minusDays(10).toString(), hoje.minusDays(3).toString(), hoje.plusDays(4).toString(), hoje.plusDays(11).toString(), hoje.plusDays(18).toString(), hoje.plusDays(25).toString());
+        assertThat(obter("/api/planejamento").get("itens")).as("ler de novo não gera mais").hasSize(6);
     }
 
     /** Duas leituras ao mesmo tempo: a trava faz a segunda esperar e achar a próxima já gerada. */
@@ -473,21 +473,21 @@ class PlanejamentoTest {
         for (CompletableFuture<HttpResponse<String>> leitura : leituras) {
             assertThat(leitura.get().statusCode()).isEqualTo(OK);
         }
-        assertThat(obter("/api/planejamento").get("itens")).hasSize(2);
+        assertThat(obter("/api/planejamento").get("itens")).hasSize(5);
     }
 
-    /** Só a última: a série segue, e a seguinte entra no lugar dela — sem a anterior a regerar. */
+    /** Só a última dos 30 dias: a série segue, e a seguinte entra no lugar dela — sem a anterior a regerar. */
     @Test
     void excluirSoAUltimaMantemASerie() {
         criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(3), "SEMANAL");
-        long ultima = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
+        long ultima = obter("/api/planejamento").get("itens").get(4).get("id").asLong();
 
         assertThat(enviar("DELETE", "/api/despesas-planejadas/" + ultima, token, null).statusCode()).isEqualTo(SEM_CONTEUDO);
 
         JsonNode itens = obter("/api/planejamento").get("itens");
         assertThat(itens).extracting(item -> item.get("prazo").asString())
-            .containsExactly(hoje.minusDays(3).toString(), hoje.plusDays(11).toString());
-        assertThat(itens.get(1).get("recorrencia").asString()).isEqualTo("SEMANAL");
+            .containsExactly(hoje.minusDays(3).toString(), hoje.plusDays(4).toString(), hoje.plusDays(11).toString(), hoje.plusDays(18).toString(), hoje.plusDays(32).toString());
+        assertThat(itens.get(4).get("recorrencia").asString()).isEqualTo("SEMANAL");
     }
 
     /** A série inteira: as pendentes dos dois lados saem, e a paga fica no histórico. */
@@ -517,7 +517,7 @@ class PlanejamentoTest {
         assertThat(resposta.statusCode()).isEqualTo(OK);
         JsonNode itens = obter("/api/planejamento").get("itens");
         assertThat(itens).extracting(item -> item.get("prazo").asString())
-            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString());
+            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString(), hoje.plusDays(12).toString(), hoje.plusDays(19).toString(), hoje.plusDays(26).toString());
         assertThat(itens).allSatisfy(item -> assertThat(item.get("valor").decimalValue()).isEqualByComparingTo("650.00"));
         assertThat(obter("/api/despesas-planejadas/pagas").get("itens").get(0).get("valorPlanejado").decimalValue())
             .isEqualByComparingTo("600.00");
@@ -530,9 +530,9 @@ class PlanejamentoTest {
 
         HttpResponse<String> resposta = desfazer(despesa, token);
 
-        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("MANTIDA_PELO_ATRASO");
+        assertThat(objectMapper.readTree(resposta.body()).get("proxima").asString()).isEqualTo("MANTIDA_NO_PERIODO");
         assertThat(obter("/api/planejamento").get("itens")).extracting(item -> item.get("prazo").asString())
-            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString());
+            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString(), hoje.plusDays(12).toString(), hoje.plusDays(19).toString(), hoje.plusDays(26).toString());
     }
 
     @Test

@@ -58,8 +58,8 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
     }
 
     @Override
-    public List<DespesaPlanejada> travarAtrasadasQueSeRepetem(Long usuarioId, LocalDate hoje) {
-        return springDataRepository.travarAtrasadasQueSeRepetem(usuarioId, hoje).stream()
+    public List<DespesaPlanejada> travarQueSeRepetemAte(Long usuarioId, LocalDate limite) {
+        return springDataRepository.travarQueSeRepetemAte(usuarioId, limite).stream()
             .map(DespesaPlanejadaJpaEntity::paraDominio)
             .toList();
     }
