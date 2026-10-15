@@ -504,6 +504,25 @@ class PlanejamentoTest {
         assertThat(obter("/api/despesas-planejadas/pagas").get("totalItens").asLong()).isEqualTo(1);
     }
 
+    /** Reajuste e mudança de dia na série: as pendentes acompanham, a paga fica como foi. */
+    @Test
+    void editarASerieMudaAsPendentesENaoAPaga() {
+        long primeira = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(10), "SEMANAL");
+        pagar(primeira, banco, categoriaDespesa, "600.00");
+        long atrasada = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
+
+        HttpResponse<String> resposta = enviar("PUT", "/api/despesas-planejadas/" + atrasada + "?serie=true", token,
+            "{\"descricao\":\"Aluguel do carro\",\"valor\":650.00,\"prazo\":\"" + hoje.minusDays(2) + "\",\"recorrencia\":\"SEMANAL\"}");
+
+        assertThat(resposta.statusCode()).isEqualTo(OK);
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).extracting(item -> item.get("prazo").asString())
+            .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString());
+        assertThat(itens).allSatisfy(item -> assertThat(item.get("valor").decimalValue()).isEqualByComparingTo("650.00"));
+        assertThat(obter("/api/despesas-planejadas/pagas").get("itens").get(0).get("valorPlanejado").decimalValue())
+            .isEqualByComparingTo("600.00");
+    }
+
     @Test
     void desfazerDaAtrasadaMantemAProxima() {
         long despesa = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(2), "SEMANAL");

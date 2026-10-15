@@ -103,6 +103,10 @@ public class DespesaPlanejadaService {
     /**
      * Tirar a recorrência é como se encerra a série: paga, esta ocorrência não gera a seguinte.
      * As já pagas ficam como estão, no histórico.
+     *
+     * <p>Com {@code serieInteira}, a mudança vale também para as outras pendentes da série
+     * ({@link DespesaPlanejada#editadaComo}) — o reajuste do aluguel, o vencimento que mudou de
+     * dia. As pagas não mudam: o que foi pago, foi.
      */
     @Transactional
     public DespesaPlanejada atualizar(
@@ -111,10 +115,17 @@ public class DespesaPlanejadaService {
         String descricao,
         BigDecimal valor,
         LocalDate prazo,
-        Recorrencia recorrencia
+        Recorrencia recorrencia,
+        boolean serieInteira
     ) {
         DespesaPlanejada existente = buscarOuLancar(usuarioId, id);
-        return repositorio.salvar(existente.editada(descricao, valor, prazo, recorrencia));
+        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia);
+        if (serieInteira && existente.seRepete()) {
+            ocorrenciasDaSerie(usuarioId, existente).stream()
+                .filter(ocorrencia -> !ocorrencia.estaPaga() && !ocorrencia.getId().equals(id))
+                .forEach(ocorrencia -> repositorio.salvar(ocorrencia.editadaComo(existente, editada)));
+        }
+        return repositorio.salvar(editada);
     }
 
     /**

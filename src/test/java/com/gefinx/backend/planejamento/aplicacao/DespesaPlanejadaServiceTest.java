@@ -70,7 +70,7 @@ class DespesaPlanejadaServiceTest {
 
     @Test
     void naoAtualizaDespesaDeOutroUsuario() {
-        assertThatThrownBy(() -> servico.atualizar(OUTRO_USUARIO, DESPESA, "Outra", BigDecimal.TEN, LocalDate.now(), null))
+        assertThatThrownBy(() -> servico.atualizar(OUTRO_USUARIO, DESPESA, "Outra", BigDecimal.TEN, LocalDate.now(), null, false))
             .isInstanceOf(RecursoNaoEncontradoNoPlanejamentoException.class);
         verify(repositorio, never()).salvar(any());
     }
@@ -296,6 +296,22 @@ class DespesaPlanejadaServiceTest {
 
         verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(4L) && !despesa.seRepete()));
         verify(repositorio).excluir(DESPESA);
+    }
+
+    /** A série inteira: o reajuste chega às outras pendentes, e a paga fica como foi. */
+    @Test
+    void editarASerieLevaAMudancaAsOutrasPendentes() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, 4L, null)));
+        when(repositorio.buscarPendentePorIdEUsuario(4L, USUARIO)).thenReturn(Optional.empty());
+        when(repositorio.buscarPagaPorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(semanal(4L, -7, null, TRANSACAO)));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(semanal(6L, 7, DESPESA, null)));
+        when(repositorio.buscarSucessora(6L)).thenReturn(Optional.empty());
+
+        servico.atualizar(USUARIO, DESPESA, "Aluguel do carro", new BigDecimal("650.00"), HOJE, Recorrencia.SEMANAL, true);
+
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && despesa.getValor().compareTo(new BigDecimal("650.00")) == 0));
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(DESPESA)));
+        verify(repositorio, never()).salvar(argThat(despesa -> despesa.getId().equals(4L)));
     }
 
     /** Desfeita, ela volta atrasada: a próxima fica, porque a atrasada a teria de qualquer jeito. */

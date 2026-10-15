@@ -66,11 +66,16 @@ public class DespesaPlanejadaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(RespostaDespesaPlanejada.apartirDoDominio(despesa));
     }
 
+    /** {@code serie=true} leva a mudança às outras pendentes da série; sem ele, só a esta ocorrência. */
     @PutMapping("/{id}")
-    public RespostaDespesaPlanejada atualizar(@PathVariable Long id, @Valid @RequestBody RequisicaoDespesaPlanejada requisicao) {
+    public RespostaDespesaPlanejada atualizar(
+        @PathVariable Long id,
+        @RequestParam(defaultValue = "false") boolean serie,
+        @Valid @RequestBody RequisicaoDespesaPlanejada requisicao
+    ) {
         return RespostaDespesaPlanejada.apartirDoDominio(despesaPlanejadaService.atualizar(
             UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.prazo(),
-            requisicao.recorrencia()
+            requisicao.recorrencia(), serie
         ));
     }
 

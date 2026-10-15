@@ -89,4 +89,57 @@ class DespesaPlanejadaTest {
         assertThat(avulsa.seRepete()).isFalse();
         assertThat(avulsa.getDiaDoVencimento()).isNull();
     }
+
+    /** O aluguel semanal passou de quinta para sexta: as outras andam o mesmo dia. */
+    @Test
+    void naSemanalOPrazoMudadoDeslocaAsOutrasPelosMesmosDias() {
+        DespesaPlanejada antes = new DespesaPlanejada(
+            7L, "Carro", VALOR, LocalDate.of(2026, 10, 15), USUARIO, null, Recorrencia.SEMANAL, null, 6L
+        );
+        DespesaPlanejada depois = antes.editada("Carro novo", new BigDecimal("650.00"), LocalDate.of(2026, 10, 16), Recorrencia.SEMANAL);
+        DespesaPlanejada outra = new DespesaPlanejada(
+            8L, "Carro", VALOR, LocalDate.of(2026, 10, 22), USUARIO, null, Recorrencia.SEMANAL, null, 7L
+        );
+
+        DespesaPlanejada ajustada = outra.editadaComo(antes, depois);
+
+        assertThat(ajustada.getId()).isEqualTo(8L);
+        assertThat(ajustada.getAnteriorId()).isEqualTo(7L);
+        assertThat(ajustada.getDescricao()).isEqualTo("Carro novo");
+        assertThat(ajustada.getValor()).isEqualByComparingTo("650.00");
+        assertThat(ajustada.getPrazo()).isEqualTo(LocalDate.of(2026, 10, 23));
+    }
+
+    /** O vencimento mensal passou para o dia 31: novembro cai no 30, e a âncora é o 31. */
+    @Test
+    void naMensalOPrazoMudadoLevaAsOutrasAoNovoDia() {
+        DespesaPlanejada antes = new DespesaPlanejada(
+            7L, "Luz", VALOR, LocalDate.of(2026, 10, 10), USUARIO, null, Recorrencia.MENSAL, 10, null
+        );
+        DespesaPlanejada depois = antes.editada("Luz", VALOR, LocalDate.of(2026, 10, 31), Recorrencia.MENSAL);
+        DespesaPlanejada novembro = new DespesaPlanejada(
+            8L, "Luz", VALOR, LocalDate.of(2026, 11, 10), USUARIO, null, Recorrencia.MENSAL, 10, 7L
+        );
+
+        DespesaPlanejada ajustada = novembro.editadaComo(antes, depois);
+
+        assertThat(ajustada.getPrazo()).isEqualTo(LocalDate.of(2026, 11, 30));
+        assertThat(ajustada.getDiaDoVencimento()).isEqualTo(31);
+    }
+
+    @Test
+    void semMudarOPrazoAsOutrasFicamNoDelas() {
+        DespesaPlanejada antes = new DespesaPlanejada(
+            7L, "Luz", VALOR, LocalDate.of(2026, 10, 10), USUARIO, null, Recorrencia.MENSAL, 10, null
+        );
+        DespesaPlanejada depois = antes.editada("Luz", new BigDecimal("180.00"), LocalDate.of(2026, 10, 10), Recorrencia.MENSAL);
+        DespesaPlanejada novembro = new DespesaPlanejada(
+            8L, "Luz", VALOR, LocalDate.of(2026, 11, 10), USUARIO, null, Recorrencia.MENSAL, 10, 7L
+        );
+
+        DespesaPlanejada ajustada = novembro.editadaComo(antes, depois);
+
+        assertThat(ajustada.getPrazo()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(ajustada.getValor()).isEqualByComparingTo("180.00");
+    }
 }

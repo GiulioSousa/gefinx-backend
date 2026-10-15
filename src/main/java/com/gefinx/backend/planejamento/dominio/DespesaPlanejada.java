@@ -2,6 +2,8 @@ package com.gefinx.backend.planejamento.dominio;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 
 /**
  * Um pagamento que ainda vai acontecer: quanto e até quando. Não é transação — não mexe no
@@ -73,6 +75,28 @@ public class DespesaPlanejada {
             : ancora(novaRecorrencia, novoPrazo);
         return new DespesaPlanejada(
             id, novaDescricao, novoValor, novoPrazo, usuarioId, transacaoId, novaRecorrencia, novoDia, anteriorId
+        );
+    }
+
+    /**
+     * Esta ocorrência com a mudança que outra da mesma série sofreu, de {@code antes} para
+     * {@code depois}: descrição, valor e repetição vêm de {@code depois}. Um prazo mudado
+     * desloca este do mesmo jeito — na semanal, o mesmo número de dias; na mensal, o novo dia
+     * do mês, que vira a âncora e cai no último dia dos meses que não o têm.
+     */
+    public DespesaPlanejada editadaComo(DespesaPlanejada antes, DespesaPlanejada depois) {
+        LocalDate novoPrazo = prazo;
+        if (!antes.prazo.equals(depois.prazo)) {
+            YearMonth mes = YearMonth.from(prazo);
+            novoPrazo = antes.recorrencia == Recorrencia.MENSAL
+                ? mes.atDay(Math.min(depois.prazo.getDayOfMonth(), mes.lengthOfMonth()))
+                : prazo.plusDays(ChronoUnit.DAYS.between(antes.prazo, depois.prazo));
+        }
+        Integer novoDia = depois.recorrencia != Recorrencia.MENSAL
+            ? null
+            : antes.recorrencia == Recorrencia.MENSAL ? depois.diaDoVencimento : novoPrazo.getDayOfMonth();
+        return new DespesaPlanejada(
+            id, depois.descricao, depois.valor, novoPrazo, usuarioId, transacaoId, depois.recorrencia, novoDia, anteriorId
         );
     }
 
