@@ -89,9 +89,10 @@ public class DespesaPlanejadaController {
         return new RespostaDesfazerPagamento(despesaPlanejadaService.desfazerPagamento(UsuarioAutenticado.obterId(), id));
     }
 
+    /** {@code serie=true} exclui todas as pendentes da série; sem ele, só esta ocorrência. */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> excluir(@PathVariable Long id) {
-        despesaPlanejadaService.excluir(UsuarioAutenticado.obterId(), id);
+    public ResponseEntity<Void> excluir(@PathVariable Long id, @RequestParam(defaultValue = "false") boolean serie) {
+        despesaPlanejadaService.excluir(UsuarioAutenticado.obterId(), id, serie);
         return ResponseEntity.noContent().build();
     }
 }

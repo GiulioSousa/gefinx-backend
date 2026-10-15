@@ -77,7 +77,7 @@ class DespesaPlanejadaServiceTest {
 
     @Test
     void naoExcluiDespesaDeOutroUsuario() {
-        assertThatThrownBy(() -> servico.excluir(OUTRO_USUARIO, DESPESA))
+        assertThatThrownBy(() -> servico.excluir(OUTRO_USUARIO, DESPESA, false))
             .isInstanceOf(RecursoNaoEncontradoNoPlanejamentoException.class);
         verify(repositorio, never()).excluir(anyLong());
     }
@@ -239,18 +239,60 @@ class DespesaPlanejadaServiceTest {
         verify(repositorio, never()).salvar(any());
     }
 
-    /** Sem isso, a anterior atrasada geraria de novo, na leitura seguinte, a que foi excluída. */
+    /** Só esta: a seguinte passa a vir da anterior, e a anterior não regera a excluída. */
     @Test
-    void excluirEncerraASerieNaAnteriorPendente() {
-        DespesaPlanejada anterior = new DespesaPlanejada(
-            4L, "Aluguel do carro", BigDecimal.TEN, HOJE.minusDays(2), USUARIO, null, Recorrencia.SEMANAL, null, null
-        );
-        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(new DespesaPlanejada(
-            DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE.plusDays(5), USUARIO, null, Recorrencia.SEMANAL, null, 4L
-        )));
-        when(repositorio.buscarPendentePorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(anterior));
+    void excluirSoEstaLigaASeguinteAAnterior() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, 4L, null)));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(semanal(6L, 7, DESPESA, null)));
 
-        servico.excluir(USUARIO, DESPESA);
+        servico.excluir(USUARIO, DESPESA, false);
+
+        InOrder ordem = inOrder(repositorio);
+        ordem.verify(repositorio).excluir(DESPESA);
+        ordem.verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && despesa.getAnteriorId().equals(4L)));
+    }
+
+    /** Só a última: a série continua, e a seguinte entra no plano no lugar dela. */
+    @Test
+    void excluirSoAUltimaPoeASeguinteNoPlano() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, 4L, null)));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.empty());
+
+        servico.excluir(USUARIO, DESPESA, false);
+
+        verify(repositorio).excluir(DESPESA);
+        verify(repositorio).salvar(argThat(despesa ->
+            despesa.getId() == null && despesa.getPrazo().equals(HOJE.plusWeeks(1)) && despesa.getAnteriorId().equals(4L)));
+    }
+
+    /** A série inteira: saem as pendentes dos dois lados; a paga fica no histórico. */
+    @Test
+    void excluirASerieTiraAsPendentesEDeixaAsPagas() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, 4L, null)));
+        when(repositorio.buscarPendentePorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(semanal(4L, -7, 3L, null)));
+        when(repositorio.buscarPendentePorIdEUsuario(3L, USUARIO)).thenReturn(Optional.empty());
+        when(repositorio.buscarPagaPorIdEUsuario(3L, USUARIO)).thenReturn(Optional.of(semanal(3L, -14, null, TRANSACAO)));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(semanal(6L, 7, DESPESA, null)));
+        when(repositorio.buscarSucessora(6L)).thenReturn(Optional.empty());
+
+        servico.excluir(USUARIO, DESPESA, true);
+
+        verify(repositorio).excluir(DESPESA);
+        verify(repositorio).excluir(4L);
+        verify(repositorio).excluir(6L);
+        verify(repositorio, never()).excluir(3L);
+        verify(repositorio, never()).salvar(any());
+    }
+
+    /** A que já não se repete é o fim da série: a anterior pendente deixa de se repetir. */
+    @Test
+    void excluirOFimDaSerieTiraARecorrenciaDaAnterior() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(new DespesaPlanejada(
+            DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE.plusDays(5), USUARIO, null, null, null, 4L
+        )));
+        when(repositorio.buscarPendentePorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(semanal(4L, -2, null, null)));
+
+        servico.excluir(USUARIO, DESPESA, false);
 
         verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(4L) && !despesa.seRepete()));
         verify(repositorio).excluir(DESPESA);
@@ -271,9 +313,16 @@ class DespesaPlanejadaServiceTest {
 
     @Test
     void excluiADoProprioUsuario() {
-        servico.excluir(USUARIO, DESPESA);
+        servico.excluir(USUARIO, DESPESA, false);
 
         verify(repositorio).excluir(DESPESA);
+    }
+
+    /** Uma ocorrência do aluguel semanal, {@code dias} depois de hoje. */
+    private static DespesaPlanejada semanal(Long id, int dias, Long anteriorId, Long transacaoId) {
+        return new DespesaPlanejada(
+            id, "Aluguel do carro", BigDecimal.TEN, HOJE.plusDays(dias), USUARIO, transacaoId, Recorrencia.SEMANAL, null, anteriorId
+        );
     }
 
     /** O que o banco faria: grava e devolve com id. */

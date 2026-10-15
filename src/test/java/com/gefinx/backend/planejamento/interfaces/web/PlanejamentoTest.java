@@ -476,18 +476,32 @@ class PlanejamentoTest {
         assertThat(obter("/api/planejamento").get("itens")).hasSize(2);
     }
 
-    /** Excluída a última, a atrasada antes dela deixa de se repetir — senão a geraria de novo. */
+    /** Só a última: a série segue, e a seguinte entra no lugar dela — sem a anterior a regerar. */
     @Test
-    void excluirAUltimaEncerraASerie() {
-        long atrasada = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(3), "SEMANAL");
-        long proxima = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
+    void excluirSoAUltimaMantemASerie() {
+        criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(3), "SEMANAL");
+        long ultima = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
 
-        assertThat(enviar("DELETE", "/api/despesas-planejadas/" + proxima, token, null).statusCode()).isEqualTo(SEM_CONTEUDO);
+        assertThat(enviar("DELETE", "/api/despesas-planejadas/" + ultima, token, null).statusCode()).isEqualTo(SEM_CONTEUDO);
 
         JsonNode itens = obter("/api/planejamento").get("itens");
-        assertThat(itens).hasSize(1);
-        assertThat(itens.get(0).get("id").asLong()).isEqualTo(atrasada);
-        assertThat(itens.get(0).get("recorrencia").isNull()).isTrue();
+        assertThat(itens).extracting(item -> item.get("prazo").asString())
+            .containsExactly(hoje.minusDays(3).toString(), hoje.plusDays(11).toString());
+        assertThat(itens.get(1).get("recorrencia").asString()).isEqualTo("SEMANAL");
+    }
+
+    /** A série inteira: as pendentes dos dois lados saem, e a paga fica no histórico. */
+    @Test
+    void excluirASerieTiraTodasAsPendentes() {
+        long primeira = criarDespesa("Aluguel do carro", "600.00", hoje.minusDays(10), "SEMANAL");
+        pagar(primeira, banco, categoriaDespesa, "600.00");
+        long meio = obter("/api/planejamento").get("itens").get(0).get("id").asLong();
+
+        assertThat(enviar("DELETE", "/api/despesas-planejadas/" + meio + "?serie=true", token, null).statusCode())
+            .isEqualTo(SEM_CONTEUDO);
+
+        assertThat(obter("/api/planejamento").get("itens")).isEmpty();
+        assertThat(obter("/api/despesas-planejadas/pagas").get("totalItens").asLong()).isEqualTo(1);
     }
 
     @Test

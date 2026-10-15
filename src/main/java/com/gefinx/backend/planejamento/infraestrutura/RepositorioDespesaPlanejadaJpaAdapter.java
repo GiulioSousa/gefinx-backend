@@ -80,9 +80,14 @@ public class RepositorioDespesaPlanejadaJpaAdapter implements RepositorioDespesa
             .map(DespesaPlanejadaJpaEntity::paraDominio);
     }
 
+    /**
+     * Já no banco ao voltar: o Hibernate grava inserções e atualizações antes das exclusões, e a
+     * ocorrência que herda o {@code anterior_id} da excluída esbarraria no {@code UNIQUE}.
+     */
     @Override
     public void excluir(Long id) {
         springDataRepository.deleteById(id);
+        springDataRepository.flush();
     }
 
     /** Lista vazia não vai ao banco: {@code IN ()} é erro de sintaxe no PostgreSQL. */

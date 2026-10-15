@@ -101,6 +101,17 @@ public class DespesaPlanejada {
         return pagaCom(null);
     }
 
+    /**
+     * A mesma ocorrência, presa a outra anterior. É como a série pula uma ocorrência excluída: a
+     * seguinte passa a vir da anterior dela, e a anterior não fica sem sucessora — o que a faria
+     * gerar de novo a que saiu.
+     */
+    public DespesaPlanejada ligadaA(Long novoAnteriorId) {
+        return new DespesaPlanejada(
+            id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, novoAnteriorId
+        );
+    }
+
     /** A série acaba nesta: nem paga, nem atrasada, ela gera a seguinte. */
     public DespesaPlanejada semRecorrencia() {
         return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId);

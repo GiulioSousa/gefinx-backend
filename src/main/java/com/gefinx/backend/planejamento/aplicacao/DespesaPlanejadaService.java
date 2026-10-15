@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,19 +118,64 @@ public class DespesaPlanejadaService {
     }
 
     /**
-     * Excluir uma ocorrência encerra a série nela. Se a anterior ainda está pendente, ela deixa
-     * de se repetir: atrasada e sem a próxima, ela geraria de novo, na leitura seguinte, a
-     * ocorrência que acabou de ser excluída.
+     * Com {@code serieInteira}, saem todas as pendentes da série — as anteriores atrasadas e as
+     * seguintes —, e a série acaba; as pagas ficam, no histórico. Sem, sai só esta ocorrência, e
+     * a série continua: a seguinte passa a vir da anterior a esta ({@link DespesaPlanejada#ligadaA})
+     * e, se esta era a última, a seguinte entra no plano no lugar dela.
+     *
+     * <p>Uma ocorrência que já não se repete é o fim de uma série. Se a anterior ainda está
+     * pendente, ela deixa de se repetir: atrasada e sem a seguinte, ela geraria de novo, na
+     * leitura seguinte, a que acabou de ser excluída.
      */
     @Transactional
-    public void excluir(Long usuarioId, Long id) {
+    public void excluir(Long usuarioId, Long id, boolean serieInteira) {
         DespesaPlanejada despesa = buscarOuLancar(usuarioId, id);
+        if (!despesa.seRepete()) {
+            encerrarSerieNaAnterior(usuarioId, despesa);
+            repositorio.excluir(id);
+        } else if (serieInteira) {
+            ocorrenciasDaSerie(usuarioId, despesa).stream()
+                .filter(ocorrencia -> !ocorrencia.estaPaga())
+                .forEach(ocorrencia -> repositorio.excluir(ocorrencia.getId()));
+        } else {
+            // A exclusão vai antes: o `anterior_id` que a seguinte herda é UNIQUE, e ainda é desta.
+            Optional<DespesaPlanejada> sucessora = repositorio.buscarSucessora(id);
+            repositorio.excluir(id);
+            repositorio.salvar(sucessora.orElseGet(despesa::proxima).ligadaA(despesa.getAnteriorId()));
+        }
+    }
+
+    private void encerrarSerieNaAnterior(Long usuarioId, DespesaPlanejada despesa) {
         if (despesa.getAnteriorId() != null) {
             repositorio.buscarPendentePorIdEUsuario(despesa.getAnteriorId(), usuarioId)
                 .filter(DespesaPlanejada::seRepete)
                 .ifPresent(anterior -> repositorio.salvar(anterior.semRecorrencia()));
         }
-        repositorio.excluir(id);
+    }
+
+    /** A série inteira, paga ou não, seguindo {@code anterior_id} para trás e para a frente. */
+    private List<DespesaPlanejada> ocorrenciasDaSerie(Long usuarioId, DespesaPlanejada despesa) {
+        List<DespesaPlanejada> serie = new ArrayList<>(List.of(despesa));
+        Long anteriorId = despesa.getAnteriorId();
+        while (anteriorId != null) {
+            Optional<DespesaPlanejada> anterior = buscarDoUsuario(usuarioId, anteriorId);
+            if (anterior.isEmpty()) {
+                break;
+            }
+            serie.add(anterior.get());
+            anteriorId = anterior.get().getAnteriorId();
+        }
+        Optional<DespesaPlanejada> seguinte = repositorio.buscarSucessora(despesa.getId());
+        while (seguinte.isPresent()) {
+            serie.add(seguinte.get());
+            seguinte = repositorio.buscarSucessora(seguinte.get().getId());
+        }
+        return serie;
+    }
+
+    private Optional<DespesaPlanejada> buscarDoUsuario(Long usuarioId, Long id) {
+        return repositorio.buscarPendentePorIdEUsuario(id, usuarioId)
+            .or(() -> repositorio.buscarPagaPorIdEUsuario(id, usuarioId));
     }
 
     /**
