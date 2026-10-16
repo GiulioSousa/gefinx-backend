@@ -255,6 +255,7 @@ Base: `http://localhost:8080/api`
 | `GET` | `/relatorios/mensal?inicio=2025-11&fim=2026-10` | Bearer | um item por mês, até 24: `{mes, receitas, despesas, resultado, saldoAoFim}`; sem transferências |
 | `GET` | `/relatorios/categorias?mes=2026-10&tipo=DESPESA` | Bearer | total de cada categoria no mês, do maior para o menor; `tipo` `DESPESA` (padrão) ou `RECEITA` |
 | `DELETE` | `/sessoes` | Bearer | `204` — encerra todas as sessões do usuário |
+| `PUT` | `/conta/senha` | Bearer | `{senhaAtual, novaSenha}` → `200` + `{token, usuario}`: troca a senha, encerra todas as sessões e devolve um token novo para esta. Senha atual errada ou nova igual à atual: `400` com o campo em `erros`; a errada conta na trava por conta |
 | `GET` `POST` | `/despesas-planejadas` | Bearer | lista por prazo / `201`; `recorrencia` opcional, `SEMANAL` ou `MENSAL`. Ler o plano põe as séries em dia: cada recorrente tem nele todas as ocorrências que vencem nos próximos 30 dias, as atrasadas inclusive |
 | `PUT` `DELETE` | `/despesas-planejadas/{id}` | Bearer | `200` / `204` — só as pendentes. Na recorrente, `DELETE` tira só esta ocorrência e a série segue; com `?serie=true`, tira todas as pendentes da série, que acaba. `PUT ?serie=true` leva a mudança às outras pendentes: o prazo mudado desloca a semanal pelos mesmos dias e leva a mensal ao novo dia |
 | `POST` | `/despesas-planejadas/{id}/pagamento` | Bearer | `201` + `{transacaoId}` — lança a despesa em finanças e tira a planejada do plano; excluir a transação a devolve. Se ela se repete, a próxima entra no plano, com o mesmo valor |
@@ -303,9 +304,10 @@ tem leitor legítimo.
 - **JWT** HS384, expiração de 24h, stateless. Claims: `sub` (id) e `usuario`.
 - **Sem cadastro aberto**: a conta nasce por `db/criar-usuario.sql`, não pela API. O que a rota de
   cadastro oferecia sem verificar e-mail era acesso a quem chegasse ao endereço.
-- **Senhas** em BCrypt, mínimo de 10 caracteres e teto de 72 bytes (limite do algoritmo). A regra
-  hoje é conferida pelo script de criação, único caminho por onde uma senha entra. Sem regra de
-  composição, conforme o NIST SP 800-63B.
+- **Senhas** em BCrypt, mínimo de 10 caracteres, teto de 72 bytes (limite do algoritmo) e fora de
+  uma lista das mais previsíveis. Na troca pela API (`PUT /api/conta/senha`) a regra é o
+  `@SenhaSegura`; na criação, o script confere o comprimento. Sem regra de composição, conforme o
+  NIST SP 800-63B.
 - **Revogação de sessões**: `DELETE /api/sessoes` move `usuarios.sessoes_validas_apos` para agora
   e derruba todo token já emitido, inclusive o de quem pediu. A emissão viaja no token em
   milissegundos, e não no `iat` — segundos não decidem o empate entre revogar e reautenticar no
@@ -345,7 +347,8 @@ Três limitações a considerar antes de publicar:
 3. A trava por conta é, por construção, um vetor de negação de serviço: quem souber o nome de
    usuário de alguém mantém a conta bloqueada gastando dez requisições. A janela é curta e o
    contador zera no login bem-sucedido, mas falta a terceira saída — um fluxo de recuperação de
-   senha, que hoje é um `UPDATE` no banco pelo mesmo caminho que criou a conta.
+   senha esquecida, que hoje é um `UPDATE` no banco pelo mesmo caminho que criou a conta. Quem
+   lembra a senha a troca pela tela.
 
 ---
 

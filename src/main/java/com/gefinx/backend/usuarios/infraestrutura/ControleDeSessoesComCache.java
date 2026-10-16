@@ -76,4 +76,11 @@ public class ControleDeSessoesComCache implements ControleDeSessoes {
         repositorio.atualizarSessoesValidasApos(usuarioId, LocalDateTime.now());
         marcaPorUsuario.invalidate(usuarioId);
     }
+
+    /** Na mesma zona que {@link #sessaoValida} usa para ler a marca de volta. */
+    @Override
+    public void encerrarTodasAte(Long usuarioId, Instant marca) {
+        repositorio.atualizarSessoesValidasApos(usuarioId, LocalDateTime.ofInstant(marca, ZoneId.systemDefault()));
+        marcaPorUsuario.invalidate(usuarioId);
+    }
 }

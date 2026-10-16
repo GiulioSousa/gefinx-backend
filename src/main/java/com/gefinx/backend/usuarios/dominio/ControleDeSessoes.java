@@ -21,4 +21,10 @@ public interface ControleDeSessoes {
      * Invalida toda sessão existente do usuário, inclusive a de quem está pedindo.
      */
     void encerrarTodas(Long usuarioId);
+
+    /**
+     * Como {@link #encerrarTodas}, com a marca dada: quem encerra e logo emite um token novo
+     * precisa saber o instante exato, para emiti-lo depois dele.
+     */
+    void encerrarTodasAte(Long usuarioId, Instant marca);
 }

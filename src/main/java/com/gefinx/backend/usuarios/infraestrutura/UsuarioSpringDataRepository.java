@@ -23,4 +23,8 @@ public interface UsuarioSpringDataRepository extends JpaRepository<UsuarioJpaEnt
     @Modifying
     @Query("UPDATE UsuarioJpaEntity u SET u.sessoesValidasApos = :instante WHERE u.id = :id")
     int atualizarSessoesValidasApos(@Param("id") Long id, @Param("instante") LocalDateTime instante);
+
+    @Modifying
+    @Query("UPDATE UsuarioJpaEntity u SET u.senhaHash = :senhaHash WHERE u.id = :id")
+    int alterarSenha(@Param("id") Long id, @Param("senhaHash") String senhaHash);
 }

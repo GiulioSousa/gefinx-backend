@@ -12,6 +12,7 @@ import com.gefinx.backend.financas.dominio.excecoes.SaldoNegativoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
+import com.gefinx.backend.usuarios.dominio.excecoes.SenhaRecusadaException;
 import com.gefinx.backend.usuarios.dominio.excecoes.TentativasExcedidasException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -57,6 +58,15 @@ public class ManipuladorGlobalDeExcecoes {
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<ErroResposta> tratarCredenciaisInvalidas(CredenciaisInvalidasException excecao) {
         return construirResposta(HttpStatus.UNAUTHORIZED, excecao.getMessage());
+    }
+
+    /** No formato das falhas de validação, com o campo, para a tela mostrar o erro embaixo dele. */
+    @ExceptionHandler(SenhaRecusadaException.class)
+    public ResponseEntity<ErroResposta> tratarSenhaRecusada(SenhaRecusadaException excecao) {
+        ErroResposta corpo = new ErroResposta(
+            HttpStatus.BAD_REQUEST.value(), excecao.getMessage(), Map.of(excecao.getCampo(), excecao.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
     }
 
     @ExceptionHandler(TentativasExcedidasException.class)

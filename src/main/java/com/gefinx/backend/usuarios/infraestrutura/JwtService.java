@@ -42,7 +42,14 @@ public class JwtService {
     }
 
     public String gerarToken(Usuario usuario) {
-        Instant agora = Instant.now();
+        return gerarToken(usuario, Instant.now());
+    }
+
+    /**
+     * Com o instante de emissão dado: a troca de senha encerra as sessões numa marca e precisa
+     * que o token novo seja emitido depois dela, nem que por um milissegundo.
+     */
+    public String gerarToken(Usuario usuario, Instant agora) {
         return Jwts.builder()
             .subject(usuario.getId().toString())
             .claim("usuario", usuario.getUsuario())

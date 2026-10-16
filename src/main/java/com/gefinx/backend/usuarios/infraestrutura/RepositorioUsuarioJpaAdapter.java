@@ -24,4 +24,9 @@ public class RepositorioUsuarioJpaAdapter implements RepositorioUsuario {
     public Optional<Usuario> buscarPorId(Long id) {
         return springDataRepository.findById(id).map(UsuarioJpaEntity::paraDominio);
     }
+
+    @Override
+    public void alterarSenha(Long id, String senhaHash) {
+        springDataRepository.alterarSenha(id, senhaHash);
+    }
 }
