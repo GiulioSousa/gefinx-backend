@@ -48,6 +48,12 @@ public class DespesaPlanejadaJpaEntity {
     @Column(name = "anterior_id")
     private Long anteriorId;
 
+    /** {@code Short} pelo mesmo motivo do dia do vencimento: as colunas são {@code SMALLINT}. */
+    private Short parcela;
+
+    @Column(name = "total_de_parcelas")
+    private Short totalDeParcelas;
+
     protected DespesaPlanejadaJpaEntity() {
     }
 
@@ -62,13 +68,20 @@ public class DespesaPlanejadaJpaEntity {
         entidade.recorrencia = despesa.getRecorrencia();
         entidade.diaDoVencimento = despesa.getDiaDoVencimento() == null ? null : despesa.getDiaDoVencimento().shortValue();
         entidade.anteriorId = despesa.getAnteriorId();
+        entidade.parcela = paraShort(despesa.getParcela());
+        entidade.totalDeParcelas = paraShort(despesa.getTotalDeParcelas());
         return entidade;
     }
 
     public DespesaPlanejada paraDominio() {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia,
-            diaDoVencimento == null ? null : diaDoVencimento.intValue(), anteriorId
+            diaDoVencimento == null ? null : diaDoVencimento.intValue(), anteriorId,
+            parcela == null ? null : parcela.intValue(), totalDeParcelas == null ? null : totalDeParcelas.intValue()
         );
+    }
+
+    private static Short paraShort(Integer numero) {
+        return numero == null ? null : numero.shortValue();
     }
 }

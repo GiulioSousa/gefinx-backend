@@ -536,12 +536,128 @@ class PlanejamentoTest {
             .containsExactly(hoje.minusDays(2).toString(), hoje.plusDays(5).toString(), hoje.plusDays(12).toString(), hoje.plusDays(19).toString(), hoje.plusDays(26).toString());
     }
 
+    /**
+     * A 5 de 6 semanal, vencendo hoje: o plano mostra a 5 e a 6, e para — sem parcelas, uma
+     * semanal teria cinco ocorrências nos 30 dias.
+     */
+    @Test
+    void aParceladaParaNaUltimaParcela() {
+        criarParcelada("Notebook", hoje, "SEMANAL", 5, 6);
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+
+        assertThat(itens).hasSize(2);
+        assertThat(itens.get(0).get("parcela").asInt()).isEqualTo(5);
+        assertThat(itens.get(1).get("parcela").asInt()).isEqualTo(6);
+        assertThat(itens.get(1).get("totalDeParcelas").asInt()).isEqualTo(6);
+        assertThat(itens.get(1).get("prazo").asString()).isEqualTo(hoje.plusDays(7).toString());
+    }
+
+    @Test
+    void pagarAUltimaParcelaNaoGeraOutra() {
+        long ultima = criarParcelada("Notebook", hoje.plusDays(40), "MENSAL", 6, 6);
+
+        pagar(ultima, banco, categoriaDespesa, "300.00");
+
+        assertThat(obter("/api/planejamento").get("itens")).isEmpty();
+        JsonNode paga = obter("/api/despesas-planejadas/pagas").get("itens").get(0);
+        assertThat(paga.get("parcela").asInt()).isEqualTo(6);
+        assertThat(paga.get("totalDeParcelas").asInt()).isEqualTo(6);
+    }
+
+    /** De 6 para 4 parcelas na série: a 5 e a 6, pendentes, saem; a 3 e a 4 passam a ser "de 4". */
+    @Test
+    void reduzirOTotalNaSerieTiraAsPendentesQuePassamDaUltima() {
+        long segunda = criarParcelada("Curso", hoje, "SEMANAL", 2, 6);
+        assertThat(obter("/api/planejamento").get("itens")).hasSize(5);
+
+        HttpResponse<String> resposta = enviar("PUT", "/api/despesas-planejadas/" + segunda + "?serie=true", token,
+            corpoParcelado("Curso", hoje, "SEMANAL", 2, 4));
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(OK);
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(3);
+        assertThat(itens.findValues("parcela")).extracting(JsonNode::asInt).containsExactly(2, 3, 4);
+        assertThat(itens.findValues("totalDeParcelas")).extracting(JsonNode::asInt).containsOnly(4);
+    }
+
+    /** Mudar o número de uma na série renumera as outras pela posição. */
+    @Test
+    void mudarONumeroNaSerieRenumeraAsOutras() {
+        long segunda = criarParcelada("Curso", hoje, "SEMANAL", 2, 6);
+
+        enviar("PUT", "/api/despesas-planejadas/" + segunda + "?serie=true", token,
+            corpoParcelado("Curso", hoje, "SEMANAL", 3, 6));
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens.findValues("parcela")).extracting(JsonNode::asInt).containsExactly(3, 4, 5, 6);
+    }
+
+    /** A 3 de 6 já foi paga: a série não pode passar a ter 2 parcelas. */
+    @Test
+    void naoReduzOTotalAbaixoDeUmaParcelaPaga() {
+        long atrasada = criarParcelada("Curso", hoje.minusDays(7), "SEMANAL", 2, 6);
+        long terceira = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
+        pagar(terceira, banco, categoriaDespesa, "100.00");
+
+        HttpResponse<String> resposta = enviar("PUT", "/api/despesas-planejadas/" + atrasada + "?serie=true", token,
+            corpoParcelado("Curso", hoje.minusDays(7), "SEMANAL", 2, 2));
+
+        assertThat(resposta.statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+        assertThat(objectMapper.readTree(resposta.body()).get("erros").get("totalDeParcelas").asString())
+            .isEqualTo("A parcela 3 já foi paga: o total não pode ser menor que 3");
+    }
+
+    /** Excluir só a última: a anterior, pendente, vira a última, e a excluída não renasce. */
+    @Test
+    void excluirSoAUltimaParcelaEncerraNaAnterior() {
+        criarParcelada("Notebook", hoje, "SEMANAL", 5, 6);
+        long ultima = obter("/api/planejamento").get("itens").get(1).get("id").asLong();
+
+        assertThat(enviar("DELETE", "/api/despesas-planejadas/" + ultima, token, null).statusCode())
+            .isEqualTo(SEM_CONTEUDO);
+
+        JsonNode itens = obter("/api/planejamento").get("itens");
+        assertThat(itens).hasSize(1);
+        assertThat(itens.get(0).get("parcela").asInt()).isEqualTo(5);
+        assertThat(itens.get(0).get("totalDeParcelas").asInt()).isEqualTo(5);
+    }
+
+    @Test
+    void recusaParcelasQueNaoFecham() {
+        assertThat(erroNoCampo(corpoParcelado("Notebook", hoje, "MENSAL", 7, 6))).isEqualTo("parcela");
+        assertThat(erroNoCampo(corpoParcelado("Notebook", hoje, null, 2, 6))).isEqualTo("recorrencia");
+        assertThat(erroNoCampo("{\"descricao\":\"Notebook\",\"valor\":300.00,\"prazo\":\"" + hoje
+            + "\",\"recorrencia\":\"MENSAL\",\"parcela\":2}")).isEqualTo("totalDeParcelas");
+        assertThat(erroNoCampo(corpoParcelado("Notebook", hoje, "MENSAL", 0, 6))).isEqualTo("parcela");
+    }
+
     @Test
     void recusaRecorrenciaDesconhecida() {
         HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token,
             "{\"descricao\":\"IPVA\",\"valor\":100.00,\"prazo\":\"" + hoje + "\",\"recorrencia\":\"ANUAL\"}");
 
         assertThat(resposta.statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+    }
+
+    private long criarParcelada(String descricao, LocalDate prazo, String recorrencia, int parcela, int total) {
+        HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token,
+            corpoParcelado(descricao, prazo, recorrencia, parcela, total));
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(CRIADO);
+        return extrairId(resposta.body());
+    }
+
+    private String corpoParcelado(String descricao, LocalDate prazo, String recorrencia, int parcela, int total) {
+        String repeticao = recorrencia == null ? "null" : "\"" + recorrencia + "\"";
+        return "{\"descricao\":\"" + descricao + "\",\"valor\":100.00,\"prazo\":\"" + prazo + "\",\"recorrencia\":"
+            + repeticao + ",\"parcela\":" + parcela + ",\"totalDeParcelas\":" + total + "}";
+    }
+
+    /** O campo apontado pelo 400 de uma criação recusada. */
+    private String erroNoCampo(String corpo) {
+        HttpResponse<String> resposta = enviar("POST", "/api/despesas-planejadas", token, corpo);
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(REQUISICAO_INVALIDA);
+        return objectMapper.readTree(resposta.body()).get("erros").propertyNames().iterator().next();
     }
 
     private HttpResponse<String> desfazer(long despesa, String tokenUsado) {

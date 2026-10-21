@@ -2,6 +2,8 @@ package com.gefinx.backend.planejamento.interfaces.web.dto;
 
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -15,7 +17,9 @@ import java.time.LocalDate;
  * pelo mesmo motivo que a coluna repete o tipo: paga, a despesa vira transação, e o que
  * coubesse aqui e não lá travaria o pagamento.
  *
- * <p>{@code recorrencia} ausente ou nula é a despesa que não se repete.
+ * <p>{@code recorrencia} ausente ou nula é a despesa que não se repete. {@code parcela} e
+ * {@code totalDeParcelas} vêm juntos ou não vêm: "2 de 6" é a segunda de seis, e a série acaba
+ * na sexta. O que depende dos dois — e da recorrência — é conferido no domínio.
  */
 public record RequisicaoDespesaPlanejada(
     @NotBlank(message = "A descrição é obrigatória")
@@ -30,6 +34,14 @@ public record RequisicaoDespesaPlanejada(
     @NotNull(message = "O prazo é obrigatório")
     LocalDate prazo,
 
-    Recorrencia recorrencia
+    Recorrencia recorrencia,
+
+    @Min(value = 1, message = "A parcela deve ser no mínimo 1")
+    @Max(value = 999, message = "A parcela deve ser no máximo 999")
+    Integer parcela,
+
+    @Min(value = 1, message = "O total de parcelas deve ser no mínimo 1")
+    @Max(value = 999, message = "O total de parcelas deve ser no máximo 999")
+    Integer totalDeParcelas
 ) {
 }

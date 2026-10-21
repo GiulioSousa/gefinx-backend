@@ -142,4 +142,74 @@ class DespesaPlanejadaTest {
         assertThat(ajustada.getPrazo()).isEqualTo(LocalDate.of(2026, 11, 10));
         assertThat(ajustada.getValor()).isEqualByComparingTo("180.00");
     }
+
+    private static DespesaPlanejada parcelada(int parcela, int total) {
+        return new DespesaPlanejada(
+            7L, "Notebook", VALOR, LocalDate.of(2026, 11, 10), USUARIO, null, Recorrencia.MENSAL, 10, 6L, parcela, total
+        );
+    }
+
+    @Test
+    void aProximaParcelaLevaONumeroSeguinte() {
+        DespesaPlanejada proxima = parcelada(2, 6).proxima();
+
+        assertThat(proxima.getParcela()).isEqualTo(3);
+        assertThat(proxima.getTotalDeParcelas()).isEqualTo(6);
+        assertThat(proxima.getPrazo()).isEqualTo(LocalDate.of(2026, 12, 10));
+    }
+
+    /** A última não gera outra, nem quando paga, nem dentro dos 30 dias do plano. */
+    @Test
+    void aUltimaParcelaNaoTemProxima() {
+        DespesaPlanejada ultima = parcelada(6, 6);
+
+        assertThat(ultima.seRepete()).isTrue();
+        assertThat(ultima.temProxima()).isFalse();
+        assertThat(ultima.temAProximaNoPlanoEm(LocalDate.of(2026, 11, 30))).isFalse();
+        assertThatThrownBy(ultima::proxima).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void parcelasPrecisamDosDoisNumerosDaRepeticaoEDeCaberNoTotal() {
+        LocalDate prazo = LocalDate.of(2026, 11, 10);
+
+        assertThatThrownBy(() -> DespesaPlanejada.nova("Notebook", VALOR, prazo, USUARIO, Recorrencia.MENSAL, 2, null))
+            .extracting("campo").isEqualTo("totalDeParcelas");
+        assertThatThrownBy(() -> DespesaPlanejada.nova("Notebook", VALOR, prazo, USUARIO, Recorrencia.MENSAL, 7, 6))
+            .extracting("campo").isEqualTo("parcela");
+        assertThatThrownBy(() -> DespesaPlanejada.nova("Notebook", VALOR, prazo, USUARIO, null, 2, 6))
+            .extracting("campo").isEqualTo("recorrencia");
+        assertThat(DespesaPlanejada.nova("Notebook", VALOR, prazo, USUARIO, Recorrencia.MENSAL, 6, 6).temProxima()).isFalse();
+    }
+
+    @Test
+    void aProximaComOutraParcelaNaoEstaComoNasceu() {
+        DespesaPlanejada atual = parcelada(2, 6);
+        DespesaPlanejada proxima = atual.proxima();
+
+        assertThat(atual.gerouSemMudancas(proxima)).isTrue();
+        assertThat(atual.gerouSemMudancas(proxima.comParcelas(4, 6))).isFalse();
+    }
+
+    /** Tirar a repetição de toda a série tira as parcelas junto. */
+    @Test
+    void semRepeticaoAsParcelasSaem() {
+        DespesaPlanejada antes = parcelada(2, 6);
+        DespesaPlanejada depois = antes.editada("Notebook", VALOR, antes.getPrazo(), null);
+
+        DespesaPlanejada outra = parcelada(3, 6).editadaComo(antes, depois);
+
+        assertThat(outra.getRecorrencia()).isNull();
+        assertThat(outra.getParcela()).isNull();
+        assertThat(outra.getTotalDeParcelas()).isNull();
+    }
+
+    @Test
+    void aAnteriorViraAUltimaParcela() {
+        DespesaPlanejada encerrada = parcelada(5, 6).comoUltimaParcela();
+
+        assertThat(encerrada.getParcela()).isEqualTo(5);
+        assertThat(encerrada.getTotalDeParcelas()).isEqualTo(5);
+        assertThat(encerrada.temProxima()).isFalse();
+    }
 }

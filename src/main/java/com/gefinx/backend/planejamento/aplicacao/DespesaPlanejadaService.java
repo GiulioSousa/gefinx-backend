@@ -10,6 +10,7 @@ import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
+import com.gefinx.backend.planejamento.dominio.excecoes.ParcelasRecusadasException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -98,18 +100,23 @@ public class DespesaPlanejadaService {
 
     @Transactional
     public DespesaPlanejada criar(Long usuarioId, String descricao, BigDecimal valor, LocalDate prazo, Recorrencia recorrencia) {
-        return repositorio.salvar(DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia));
+        return criar(usuarioId, descricao, valor, prazo, recorrencia, null, null);
     }
 
-    /**
-     * Tirar a recorrência é como se encerra a série: paga, esta ocorrência não gera a seguinte.
-     * As já pagas ficam como estão, no histórico.
-     *
-     * <p>Com {@code serieInteira}, a mudança vale também para as outras pendentes da série
-     * ({@link DespesaPlanejada#editadaComo}) — o reajuste do aluguel, o vencimento que mudou de
-     * dia. As pagas não mudam: o que foi pago, foi.
-     */
+    /** Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última parcela. */
     @Transactional
+    public DespesaPlanejada criar(
+        Long usuarioId,
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Recorrencia recorrencia,
+        Integer parcela,
+        Integer totalDeParcelas
+    ) {
+        return repositorio.salvar(DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas));
+    }
+
     public DespesaPlanejada atualizar(
         Long usuarioId,
         Long id,
@@ -119,14 +126,79 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         boolean serieInteira
     ) {
+        return atualizar(usuarioId, id, descricao, valor, prazo, recorrencia, null, null, serieInteira);
+    }
+
+    /**
+     * Tirar a recorrência é como se encerra a série: paga, esta ocorrência não gera a seguinte.
+     * As já pagas ficam como estão, no histórico.
+     *
+     * <p>Com {@code serieInteira}, a mudança vale também para as outras pendentes da série
+     * ({@link DespesaPlanejada#editadaComo}) — o reajuste do aluguel, o vencimento que mudou de
+     * dia. As pagas não mudam: o que foi pago, foi.
+     *
+     * <p><b>Na série inteira, as parcelas seguem a posição.</b> Esta ganha o número pedido, e as
+     * outras, o dela mais a distância até ela: quem vira "3 de 6" leva a seguinte a "4 de 6". As
+     * pendentes que passam da nova última saem do plano — reduzir o total de 6 para 4 tira a 5 e
+     * a 6 —, mas uma paga acima do novo total recusa a edição: o que foi pago não some.
+     */
+    @Transactional
+    public DespesaPlanejada atualizar(
+        Long usuarioId,
+        Long id,
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Recorrencia recorrencia,
+        Integer parcela,
+        Integer totalDeParcelas,
+        boolean serieInteira
+    ) {
         DespesaPlanejada existente = buscarOuLancar(usuarioId, id);
-        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia);
+        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia, parcela, totalDeParcelas);
         if (serieInteira && existente.seRepete()) {
-            ocorrenciasDaSerie(usuarioId, existente).stream()
-                .filter(ocorrencia -> !ocorrencia.estaPaga() && !ocorrencia.getId().equals(id))
-                .forEach(ocorrencia -> repositorio.salvar(ocorrencia.editadaComo(existente, editada)));
+            List<DespesaPlanejada> serie = ocorrenciasDaSerie(usuarioId, existente);
+            int posicao = serie.indexOf(existente);
+            exigirNumeracaoPossivel(serie, posicao, editada);
+            for (int indice = 0; indice < serie.size(); indice++) {
+                DespesaPlanejada ocorrencia = serie.get(indice);
+                if (indice == posicao || ocorrencia.estaPaga()) {
+                    continue;
+                }
+                Integer numero = editada.eParcelada() ? editada.getParcela() + indice - posicao : null;
+                if (numero != null && numero > editada.getTotalDeParcelas()) {
+                    repositorio.excluir(ocorrencia.getId());
+                } else {
+                    repositorio.salvar(ocorrencia.editadaComo(existente, editada).comParcelas(numero, editada.getTotalDeParcelas()));
+                }
+            }
         }
         return repositorio.salvar(editada);
+    }
+
+    /**
+     * A numeração pedida tem de caber na série: nenhuma pendente antes desta abaixo da parcela
+     * 1, e nenhuma paga depois desta acima do novo total.
+     */
+    private static void exigirNumeracaoPossivel(List<DespesaPlanejada> serie, int posicao, DespesaPlanejada editada) {
+        if (!editada.eParcelada()) {
+            return;
+        }
+        for (int indice = 0; indice < serie.size(); indice++) {
+            DespesaPlanejada ocorrencia = serie.get(indice);
+            int numero = editada.getParcela() + indice - posicao;
+            if (indice < posicao && !ocorrencia.estaPaga() && numero < 1) {
+                throw new ParcelasRecusadasException(
+                    "parcela", "Há " + (posicao - indice) + " ocorrência(s) pendente(s) antes desta: a parcela não pode ser menor que "
+                        + (editada.getParcela() - numero + 1)
+                );
+            }
+            if (indice > posicao && ocorrencia.estaPaga() && numero > editada.getTotalDeParcelas()) {
+                throw new ParcelasRecusadasException(
+                    "totalDeParcelas", "A parcela " + numero + " já foi paga: o total não pode ser menor que " + numero
+                );
+            }
+        }
     }
 
     /**
@@ -135,20 +207,20 @@ public class DespesaPlanejadaService {
      * a série continua: a seguinte passa a vir da anterior a esta ({@link DespesaPlanejada#ligadaA})
      * e, se esta era a última, a seguinte entra no plano no lugar dela.
      *
-     * <p>Uma ocorrência que já não se repete é o fim de uma série. Se a anterior ainda está
-     * pendente, ela deixa de se repetir: atrasada e sem a seguinte, ela geraria de novo, na
-     * leitura seguinte, a que acabou de ser excluída.
+     * <p>Uma ocorrência que já não gera a seguinte — a que não se repete, ou a última parcela — é
+     * o fim de uma série. Se a anterior ainda está pendente, a série passa a acabar nela: atrasada
+     * e sem a seguinte, ela geraria de novo, na leitura seguinte, a que acabou de ser excluída.
      */
     @Transactional
     public void excluir(Long usuarioId, Long id, boolean serieInteira) {
         DespesaPlanejada despesa = buscarOuLancar(usuarioId, id);
-        if (!despesa.seRepete()) {
-            encerrarSerieNaAnterior(usuarioId, despesa);
-            repositorio.excluir(id);
-        } else if (serieInteira) {
+        if (serieInteira && despesa.seRepete()) {
             ocorrenciasDaSerie(usuarioId, despesa).stream()
                 .filter(ocorrencia -> !ocorrencia.estaPaga())
                 .forEach(ocorrencia -> repositorio.excluir(ocorrencia.getId()));
+        } else if (!despesa.temProxima()) {
+            encerrarSerieNaAnterior(usuarioId, despesa);
+            repositorio.excluir(id);
         } else {
             // A exclusão vai antes: o `anterior_id` que a seguinte herda é UNIQUE, e ainda é desta.
             Optional<DespesaPlanejada> sucessora = repositorio.buscarSucessora(id);
@@ -159,15 +231,22 @@ public class DespesaPlanejadaService {
 
     private void encerrarSerieNaAnterior(Long usuarioId, DespesaPlanejada despesa) {
         if (despesa.getAnteriorId() != null) {
+            // A parcelada acaba virando a última parcela, e não deixando de se repetir: o número
+            // que ela tem continua certo, e quem o vê sabe que é a última.
             repositorio.buscarPendentePorIdEUsuario(despesa.getAnteriorId(), usuarioId)
-                .filter(DespesaPlanejada::seRepete)
-                .ifPresent(anterior -> repositorio.salvar(anterior.semRecorrencia()));
+                .filter(DespesaPlanejada::temProxima)
+                .ifPresent(anterior -> repositorio.salvar(
+                    anterior.eParcelada() ? anterior.comoUltimaParcela() : anterior.semRecorrencia()
+                ));
         }
     }
 
-    /** A série inteira, paga ou não, seguindo {@code anterior_id} para trás e para a frente. */
+    /**
+     * A série inteira, paga ou não, da primeira à última, seguindo {@code anterior_id} para trás
+     * e para a frente. A ordem é a da corrente, e é ela que dá a posição de cada parcela.
+     */
     private List<DespesaPlanejada> ocorrenciasDaSerie(Long usuarioId, DespesaPlanejada despesa) {
-        List<DespesaPlanejada> serie = new ArrayList<>(List.of(despesa));
+        List<DespesaPlanejada> serie = new ArrayList<>();
         Long anteriorId = despesa.getAnteriorId();
         while (anteriorId != null) {
             Optional<DespesaPlanejada> anterior = buscarDoUsuario(usuarioId, anteriorId);
@@ -177,6 +256,8 @@ public class DespesaPlanejadaService {
             serie.add(anterior.get());
             anteriorId = anterior.get().getAnteriorId();
         }
+        Collections.reverse(serie);
+        serie.add(despesa);
         Optional<DespesaPlanejada> seguinte = repositorio.buscarSucessora(despesa.getId());
         while (seguinte.isPresent()) {
             serie.add(seguinte.get());
@@ -199,8 +280,9 @@ public class DespesaPlanejadaService {
      * as pendentes. Valor e data vêm de quem paga, e não da despesa — paga-se às vezes um
      * pouco a mais ou a menos do que se planejou, e em outro dia.
      *
-     * <p>Se ela se repete, a ocorrência seguinte entra no plano na mesma transação — a não ser
-     * que já exista: um pagamento desfeito e refeito não gera uma segunda.
+     * <p>Se ela tem a seguinte — se repete e não é a última parcela —, a seguinte entra no plano
+     * na mesma transação, a não ser que já exista: um pagamento desfeito e refeito não gera uma
+     * segunda.
      *
      * @return o id da transação criada
      */
@@ -217,7 +299,7 @@ public class DespesaPlanejadaService {
         DespesaPlanejada despesa = buscarOuLancar(usuarioId, id);
         Long transacaoId = registroDePagamento.registrar(usuarioId, descricao, valor, data, categoriaId, contaId);
         repositorio.salvar(despesa.pagaCom(transacaoId));
-        if (despesa.seRepete() && !repositorio.temSucessora(despesa.getId())) {
+        if (despesa.temProxima() && !repositorio.temSucessora(despesa.getId())) {
             repositorio.salvar(despesa.proxima());
         }
         return transacaoId;

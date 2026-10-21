@@ -22,7 +22,9 @@ public record RespostaDespesaPaga(
     String conta,
     String categoria,
     boolean pagaComAtraso,
-    Recorrencia recorrencia
+    Recorrencia recorrencia,
+    Integer parcela,
+    Integer totalDeParcelas
 ) {
 
     public static RespostaDespesaPaga apartirDoDominio(DespesaPaga paga) {
@@ -38,7 +40,9 @@ public record RespostaDespesaPaga(
             pagamento == null ? null : pagamento.conta(),
             pagamento == null ? null : pagamento.categoria(),
             paga.pagaComAtraso(),
-            paga.despesa().getRecorrencia()
+            paga.despesa().getRecorrencia(),
+            paga.despesa().getParcela(),
+            paga.despesa().getTotalDeParcelas()
         );
     }
 }
