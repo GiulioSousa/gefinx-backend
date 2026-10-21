@@ -1,6 +1,5 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
-import com.gefinx.backend.planejamento.dominio.CalendarioDeTrabalho;
 import com.gefinx.backend.planejamento.dominio.ContaDoPlanejamento;
 import com.gefinx.backend.planejamento.dominio.DespesaLancada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
@@ -25,6 +24,7 @@ public class PlanejamentoService {
     private final DespesaPlanejadaService despesaPlanejadaService;
     private final RepositorioContasDeFora repositorioContasDeFora;
     private final FonteDeSaldo fonteDeSaldo;
+    private final CalendarioService calendarioService;
     private final Clock relogio;
 
     public PlanejamentoService(
@@ -32,12 +32,14 @@ public class PlanejamentoService {
         DespesaPlanejadaService despesaPlanejadaService,
         RepositorioContasDeFora repositorioContasDeFora,
         FonteDeSaldo fonteDeSaldo,
+        CalendarioService calendarioService,
         Clock relogio
     ) {
         this.repositorioDespesa = repositorioDespesa;
         this.despesaPlanejadaService = despesaPlanejadaService;
         this.repositorioContasDeFora = repositorioContasDeFora;
         this.fonteDeSaldo = fonteDeSaldo;
+        this.calendarioService = calendarioService;
         this.relogio = relogio;
     }
 
@@ -70,7 +72,7 @@ public class PlanejamentoService {
 
         return PlanoDePagamento.calcular(
             hoje, saldoDeOntem, saldoAtual, repositorioDespesa.listarPendentesPorUsuario(usuarioId),
-            CalendarioDeTrabalho.SEGUNDA_A_SABADO
+            calendarioService.doUsuario(usuarioId)
         );
     }
 

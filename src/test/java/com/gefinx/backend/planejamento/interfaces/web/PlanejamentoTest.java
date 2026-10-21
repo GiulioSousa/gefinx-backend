@@ -20,6 +20,7 @@ import java.net.http.HttpResponse;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -134,7 +135,7 @@ class PlanejamentoTest {
         assertThat(itens.get(0).get("descricao").asString()).isEqualTo("Aluguel");
         assertThat(itens.get(0).get("falta").decimalValue()).isEqualByComparingTo("200.00");
         assertThat(itens.get(0).get("diasDeTrabalho").asInt())
-            .isEqualTo(CalendarioDeTrabalho.SEGUNDA_A_SABADO.contarDias(hoje, prazoCurto));
+            .isEqualTo(CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of()).contarDias(hoje, prazoCurto));
         assertThat(itens.get(1).get("acumulado").decimalValue()).isEqualByComparingTo("2300.00");
         assertThat(itens.get(1).get("falta").decimalValue()).isEqualByComparingTo("1000.00");
         assertThat(itens.get(1).get("situacao").asString()).isEqualTo("EM_ANDAMENTO");

@@ -10,6 +10,7 @@ import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoria
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.gefinx.backend.financas.dominio.excecoes.SaldoNegativoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
+import com.gefinx.backend.planejamento.dominio.excecoes.PeriodoSemTrabalhoRecusadoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import com.gefinx.backend.usuarios.dominio.excecoes.CredenciaisInvalidasException;
 import com.gefinx.backend.usuarios.dominio.excecoes.SenhaRecusadaException;
@@ -63,6 +64,15 @@ public class ManipuladorGlobalDeExcecoes {
     /** No formato das falhas de validação, com o campo, para a tela mostrar o erro embaixo dele. */
     @ExceptionHandler(SenhaRecusadaException.class)
     public ResponseEntity<ErroResposta> tratarSenhaRecusada(SenhaRecusadaException excecao) {
+        ErroResposta corpo = new ErroResposta(
+            HttpStatus.BAD_REQUEST.value(), excecao.getMessage(), Map.of(excecao.getCampo(), excecao.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
+    }
+
+    /** Como a senha recusada: com o campo, para o erro aparecer embaixo dele. */
+    @ExceptionHandler(PeriodoSemTrabalhoRecusadoException.class)
+    public ResponseEntity<ErroResposta> tratarPeriodoRecusado(PeriodoSemTrabalhoRecusadoException excecao) {
         ErroResposta corpo = new ErroResposta(
             HttpStatus.BAD_REQUEST.value(), excecao.getMessage(), Map.of(excecao.getCampo(), excecao.getMessage())
         );

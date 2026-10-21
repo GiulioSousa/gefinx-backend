@@ -1,5 +1,6 @@
 package com.gefinx.backend.planejamento.aplicacao;
 
+import com.gefinx.backend.planejamento.dominio.CalendarioDeTrabalho;
 import com.gefinx.backend.planejamento.dominio.ContaDoPlanejamento;
 import com.gefinx.backend.planejamento.dominio.DespesaLancada;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
@@ -143,6 +144,12 @@ class PlanejamentoServiceTest {
         DespesaPlanejadaService despesas = new DespesaPlanejadaService(
             repositorioDespesa, mock(RegistroDePagamento.class), fonteDeSaldo, relogio
         );
-        return new PlanejamentoService(repositorioDespesa, despesas, repositorioContasDeFora, fonteDeSaldo, relogio);
+        // Sem feriados: o 12/10 cai entre os exemplos, e o que se testa aqui é o saldo, não o
+        // calendário, que tem os próprios testes.
+        CalendarioService calendario = mock(CalendarioService.class);
+        when(calendario.doUsuario(USUARIO)).thenReturn(CalendarioDeTrabalho.SEGUNDA_A_SABADO);
+        return new PlanejamentoService(
+            repositorioDespesa, despesas, repositorioContasDeFora, fonteDeSaldo, calendario, relogio
+        );
     }
 }

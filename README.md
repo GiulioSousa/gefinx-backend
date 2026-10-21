@@ -261,8 +261,11 @@ Base: `http://localhost:8080/api`
 | `POST` | `/despesas-planejadas/{id}/pagamento` | Bearer | `201` + `{transacaoId}` — lança a despesa em finanças e tira a planejada do plano; excluir a transação a devolve. Se ela se repete, a próxima entra no plano, com o mesmo valor |
 | `GET` | `/despesas-planejadas/pagas` | Bearer | histórico paginado (`pagina`, `tamanho` ≤ 100), do prazo mais recente: o planejado ao lado do pago, com data, conta, categoria e `pagaComAtraso` |
 | `DELETE` | `/despesas-planejadas/{id}/pagamento` | Bearer | `200` + `{proxima}` — exclui a transação e devolve a despesa ao plano; a próxima ocorrência sai junto se ainda está como nasceu (`REMOVIDA`), fica se foi editada (`MANTIDA`) ou se ela vence nos 30 dias do plano (`MANTIDA_NO_PERIODO`); `409` se ela já foi paga |
-| `GET` | `/planejamento` | Bearer | o plano do dia: saldo de ontem e de agora, ganho de hoje, meta diária e, por despesa, o que falta e quanto ganhar por dia |
+| `GET` | `/planejamento` | Bearer | o plano do dia: saldo de ontem e de agora, ganho de hoje, meta diária e, por despesa, o que falta e quanto ganhar por dia; `folgaDeHoje` diz por que hoje não conta (`Domingo`, o feriado, o período), ou é nulo |
 | `GET` `PUT` | `/planejamento/contas` | Bearer | as contas, cada uma com `entraNoPlanejamento`; o `PUT` recebe `{contasDeFora: [ids]}` — a escolha inteira |
+| `GET` | `/planejamento/calendario?ano=2026` | Bearer | os feriados nacionais do ano (2000–2100), cada um com `ignorado`, e os períodos sem trabalho que tocam o ano |
+| `PUT` `DELETE` | `/planejamento/calendario/feriados-ignorados/{data}` | Bearer | `204` — ignora o feriado (o dia volta a contar) / volta a considerá-lo; repetir não muda nada; `404` se a data não é feriado nacional |
+| `POST` `DELETE` | `/planejamento/calendario/periodos` | Bearer | `{inicio, fim?, descricao?}` → `201`; sem `fim`, um dia só; até 366 dias. `400` com o campo em `erros` se o fim vem antes, se sobrepõe outro período ou se não há dia de trabalho dentro. `DELETE /periodos/{id}` → `204` |
 
 Todo recurso é filtrado pelo usuário autenticado, extraído do token — **nunca** de parâmetro da
 requisição.
@@ -276,7 +279,10 @@ período devolve.
 O planejamento compara as despesas planejadas com o saldo, sem o dinheiro das contas marcadas
 como fora dele. As despesas são ordenadas por prazo e consomem o saldo em sequência, e a meta
 diária é o que falta até cada prazo dividido pelos dias de trabalho até ele — de segunda a
-sábado, contando hoje e não o dia do prazo —, ficando com o maior. Ela sai do saldo do fim de
+sábado, menos os feriados nacionais não ignorados e os períodos sem trabalho, contando hoje e
+não o dia do prazo —, ficando com o maior. Os feriados são calculados, para qualquer ano: os de
+lei federal, com a Paixão de Cristo pela Páscoa; Carnaval, Corpus Christi e feriado local entram
+como período. Ela sai do saldo do fim de
 ontem, e por isso não muda durante o dia. "Hoje" é decidido no fuso de
 `gefinx.planejamento.fuso-horario` (padrão `America/Sao_Paulo`), e não no do servidor.
 

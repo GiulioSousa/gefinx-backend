@@ -20,7 +20,7 @@ import java.util.List;
  * meta todo dia cumpre todos os prazos.
  *
  * <p><b>Dois saldos, com papéis diferentes.</b> A meta sai do saldo do fim de ontem e conta
- * hoje como dia de trabalho, e por isso fica fixa durante o dia — não se mexe a cada
+ * hoje entre os dias de trabalho, quando ele é um, e por isso fica fixa durante o dia — não se mexe a cada
  * lançamento. O que se ganhou hoje aparece à parte, como a diferença entre o saldo de agora e
  * o de ontem, e o {@code restanteHoje} diz quanto dela ainda falta. A {@code falta} de cada
  * despesa, ao contrário, usa o saldo de agora: é a resposta a "quanto falta", e ela tem de
@@ -31,6 +31,10 @@ import java.util.List;
  * meta — dividir por zero não tem resposta útil. Mas continua consumindo saldo, e em primeiro
  * lugar, por ter o prazo mais antigo: ela ainda é devida, e as seguintes só enxergam o que
  * sobrar depois dela.
+ *
+ * <p>{@code folgaDeHoje} diz por que hoje não é dia de trabalho — "Domingo", o nome do
+ * feriado, a descrição do período — e é nulo quando é. Nesse dia a meta não pede ganho: ela
+ * já se espalha só pelos dias que contam, e o {@code restanteHoje} é zero.
  */
 public record PlanoDePagamento(
     LocalDate hoje,
@@ -40,6 +44,7 @@ public record PlanoDePagamento(
     BigDecimal metaDiaria,
     BigDecimal restanteHoje,
     LocalDate prazoDecisivo,
+    String folgaDeHoje,
     List<ItemDoPlano> itens
 ) {
 
@@ -95,10 +100,15 @@ public record PlanoDePagamento(
         }
 
         BigDecimal ganhoDeHoje = saldoAtual.subtract(saldoDeOntem);
-        BigDecimal restanteHoje = metaDiaria.subtract(ganhoDeHoje).max(BigDecimal.ZERO);
+        String folgaDeHoje = calendario.motivoDaFolga(hoje).orElse(null);
+        // Na folga, hoje já ficou fora da conta dos dias, e não há o que faltar dele.
+        BigDecimal restanteHoje = folgaDeHoje != null
+            ? BigDecimal.ZERO
+            : metaDiaria.subtract(ganhoDeHoje).max(BigDecimal.ZERO);
 
         return new PlanoDePagamento(
-            hoje, saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, restanteHoje, prazoDecisivo, List.copyOf(itens)
+            hoje, saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, restanteHoje, prazoDecisivo, folgaDeHoje,
+            List.copyOf(itens)
         );
     }
 

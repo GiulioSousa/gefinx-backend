@@ -15,6 +15,9 @@ import java.util.List;
  * <p>{@code metaDiaria} é zero quando não há o que ganhar, e {@code prazoDecisivo} nulo; o
  * {@code porDia} de cada item é nulo quando ele não entra na meta — coberto, atrasado, ou
  * sem dia de trabalho até o prazo.
+ *
+ * <p>{@code folgaDeHoje} é o motivo de hoje não contar — "Domingo", o nome do feriado, a
+ * descrição do período —, e nulo quando hoje é dia de trabalho.
  */
 public record RespostaPlanejamento(
     LocalDate hoje,
@@ -24,6 +27,7 @@ public record RespostaPlanejamento(
     BigDecimal metaDiaria,
     BigDecimal restanteHoje,
     LocalDate prazoDecisivo,
+    String folgaDeHoje,
     List<Item> itens
 ) {
 
@@ -50,6 +54,7 @@ public record RespostaPlanejamento(
             plano.metaDiaria(),
             plano.restanteHoje(),
             plano.prazoDecisivo(),
+            plano.folgaDeHoje(),
             plano.itens().stream()
                 .map(item -> new Item(
                     item.despesa().getId(),

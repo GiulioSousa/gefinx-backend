@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -140,6 +141,40 @@ class PlanoDePagamentoTest {
 
         assertThat(plano.itens().get(0).situacao()).isEqualTo(SituacaoDaDespesa.SEM_DIAS_DE_TRABALHO);
         assertThat(plano.metaDiaria()).isEqualByComparingTo("0");
+    }
+
+    /** No domingo a meta vale para os próximos dias, e hoje não falta nada dela. */
+    @Test
+    void naFolgaHojeNaoPedeGanhoEDizOMotivo() {
+        PlanoDePagamento plano = calcular(DOMINGO, "1000.00", "1000.00", ALUGUEL);
+
+        assertThat(plano.folgaDeHoje()).isEqualTo("Domingo");
+        // 500 em 11 dias, de segunda 28/09 à véspera de 10/10: o domingo de hoje não entra.
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("45.46");
+        assertThat(plano.restanteHoje()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void emDiaDeTrabalhoNaoHaFolga() {
+        assertThat(calcular(SABADO, "1000.00", "1000.00", ALUGUEL).folgaDeHoje()).isNull();
+    }
+
+    /**
+     * 12/10/2026 é segunda e feriado: de sábado 26/09 até a véspera de 20/10 são 19 dias de
+     * trabalho, e não 20. Ignorado, ele volta a contar.
+     */
+    @Test
+    void oFeriadoTiraUmDiaDaContaEIgnoradoDevolve() {
+        LocalDate aparecida = LocalDate.of(2026, 10, 12);
+
+        PlanoDePagamento comFeriado = PlanoDePagamento.calcular(SABADO, new BigDecimal("1000.00"),
+            new BigDecimal("1000.00"), List.of(CARTAO), CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of()));
+        PlanoDePagamento ignorado = PlanoDePagamento.calcular(SABADO, new BigDecimal("1000.00"),
+            new BigDecimal("1000.00"), List.of(CARTAO),
+            CalendarioDeTrabalho.comFeriadosNacionais(Set.of(aparecida), List.of()));
+
+        assertThat(comFeriado.itens().get(0).diasDeTrabalho()).isEqualTo(19);
+        assertThat(ignorado.itens().get(0).diasDeTrabalho()).isEqualTo(20);
     }
 
     @Test
