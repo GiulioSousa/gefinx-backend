@@ -119,7 +119,7 @@ class PlanoDePagamentoTest {
     }
 
     @Test
-    void semDiaDeTrabalhoAntesDoPrazoFicaForaDaMetaMasConsomeSaldo() {
+    void semDiaDeTrabalhoAntesDoPrazoEntraInteiraNaMeta() {
         PlanoDePagamento plano = calcular(SABADO, "100.00", "100.00",
             despesa(3L, "Vence hoje", "300.00", SABADO), CARTAO);
 
@@ -129,18 +129,45 @@ class PlanoDePagamentoTest {
         assertThat(venceHoje.diasDeTrabalho()).isZero();
         assertThat(venceHoje.porDia()).isNull();
 
-        // O cartão só enxerga o que sobra depois dela: 300 + 800 - 100 = 1000, em 20 dias.
+        // O cartão só enxerga o que sobra depois dela, 300 + 800 - 100 = 1000, e divide pelos
+        // 20 dias só o que fica depois do pendente: (1000 - 200) / 20 = 40.
         assertThat(plano.itens().get(1).falta()).isEqualByComparingTo("1000.00");
-        assertThat(plano.metaDiaria()).isEqualByComparingTo("50.00");
+        assertThat(plano.itens().get(1).porDia()).isEqualByComparingTo("40.00");
+        assertThat(plano.pendente()).isEqualByComparingTo("200.00");
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("240.00");
+        assertThat(plano.restanteHoje()).isEqualByComparingTo("240.00");
         assertThat(plano.prazoDecisivo()).isEqualTo(DIA_20);
     }
 
+    /** Sem outra despesa, o pendente é a meta inteira, e não há prazo para dividir. */
+    @Test
+    void oPendenteSozinhoEAMeta() {
+        PlanoDePagamento plano = calcular(SABADO, "100.00", "100.00", despesa(3L, "Vence hoje", "300.00", SABADO));
+
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("200.00");
+        assertThat(plano.pendente()).isEqualByComparingTo("200.00");
+        assertThat(plano.prazoDecisivo()).isNull();
+    }
+
+    /** Na folga o pendente continua na meta, mas hoje não se pede ganho. */
     @Test
     void domingoComPrazoNaSegundaNaoTemDiaDeTrabalho() {
         PlanoDePagamento plano = calcular(DOMINGO, "0", "0", despesa(1L, "Conta", "100.00", SEGUNDA));
 
         assertThat(plano.itens().get(0).situacao()).isEqualTo(SituacaoDaDespesa.SEM_DIAS_DE_TRABALHO);
-        assertThat(plano.metaDiaria()).isEqualByComparingTo("0");
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("100.00");
+        assertThat(plano.restanteHoje()).isEqualByComparingTo("0");
+    }
+
+    /** Como o resto da meta, o pendente sai do saldo de ontem: o que se ganha hoje enche a barra. */
+    @Test
+    void oPendenteFicaParadoDuranteODia() {
+        PlanoDePagamento plano = calcular(SABADO, "100.00", "250.00",
+            despesa(3L, "Atrasada", "300.00", SABADO.minusDays(3)));
+
+        assertThat(plano.itens().get(0).falta()).isEqualByComparingTo("50.00");
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("200.00");
+        assertThat(plano.restanteHoje()).isEqualByComparingTo("50.00");
     }
 
     /** No domingo a meta vale para os próximos dias, e hoje não falta nada dela. */
@@ -187,6 +214,21 @@ class PlanoDePagamentoTest {
         assertThat(atrasada.falta()).isEqualByComparingTo("200.00");
         assertThat(atrasada.porDia()).isNull();
         assertThat(plano.itens().get(1).falta()).isEqualByComparingTo("1000.00");
+        assertThat(plano.pendente()).isEqualByComparingTo("200.00");
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("240.00");
+    }
+
+    /**
+     * Paga, ela sai da lista. Pela conta principal, o pagamento de hoje também é descontado do
+     * saldo de ontem (ver {@code PlanejamentoService}): 100 - 300 = -200. A dívida passa a ser
+     * saldo negativo, dividido pelos dias do cartão: (800 + 200) / 20 = 50.
+     */
+    @Test
+    void pagaAAtrasadaOPendenteSaiDaMeta() {
+        PlanoDePagamento plano = calcular(SABADO, "-200.00", "-200.00", CARTAO);
+
+        assertThat(plano.pendente()).isEqualByComparingTo("0");
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("50.00");
     }
 
     @Test
@@ -196,6 +238,9 @@ class PlanoDePagamentoTest {
 
         assertThat(plano.itens().get(0).situacao()).isEqualTo(SituacaoDaDespesa.ATRASADA);
         assertThat(plano.itens().get(0).falta()).isEqualByComparingTo("0");
+        assertThat(plano.pendente())
+            .as("o saldo já cobre: falta pagar, mas não falta ganhar")
+            .isEqualByComparingTo("0");
     }
 
     @Test

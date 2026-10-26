@@ -15,9 +15,9 @@ import java.util.List;
  * elas são ordenadas por prazo e o saldo é consumido em sequência — cada uma é comparada
  * com o {@code acumulado}, a soma dela com todas as que vencem antes.
  *
- * <p><b>A meta diária é a maior das exigências</b>: cada prazo pede o que ainda falta até
- * ele dividido pelos dias de trabalho até ele, e é o mais apertado que manda. Quem ganha a
- * meta todo dia cumpre todos os prazos.
+ * <p><b>A meta diária é o pendente mais a maior das exigências</b>: cada prazo pede o que
+ * ainda falta até ele dividido pelos dias de trabalho até ele, e é o mais apertado que manda.
+ * Quem ganha a meta todo dia cumpre todos os prazos.
  *
  * <p><b>Dois saldos, com papéis diferentes.</b> A meta sai do saldo do fim de ontem e conta
  * hoje entre os dias de trabalho, quando ele é um, e por isso fica fixa durante o dia — não se mexe a cada
@@ -27,10 +27,12 @@ import java.util.List;
  * mudar assim que uma receita entra. Amanhã o ganho de hoje já é saldo de ontem, e a meta é
  * recalculada sem que nada precise ser guardado.
  *
- * <p>Uma despesa atrasada, ou sem dia de trabalho antes do prazo, fica fora do cálculo da
- * meta — dividir por zero não tem resposta útil. Mas continua consumindo saldo, e em primeiro
- * lugar, por ter o prazo mais antigo: ela ainda é devida, e as seguintes só enxergam o que
- * sobrar depois dela.
+ * <p><b>O {@code pendente} entra inteiro na meta.</b> Uma despesa atrasada, ou sem dia de
+ * trabalho antes do prazo — vence hoje, ou é domingo e vence na segunda —, não tem por quantos
+ * dias dividir: o que falta dela é pedido de uma vez, e continua somado à meta, dia após dia,
+ * enquanto ela não for paga. Sai quando é paga, ou quando o saldo de ontem passa a cobri-la. Ela
+ * também consome saldo em primeiro lugar, por ter o prazo mais antigo, e as seguintes dividem
+ * pelos seus dias só o que sobra depois do pendente — sem isso ele seria cobrado duas vezes.
  *
  * <p>{@code folgaDeHoje} diz por que hoje não é dia de trabalho — "Domingo", o nome do
  * feriado, a descrição do período — e é nulo quando é. Nesse dia a meta não pede ganho: ela
@@ -42,6 +44,7 @@ public record PlanoDePagamento(
     BigDecimal saldoAtual,
     BigDecimal ganhoDeHoje,
     BigDecimal metaDiaria,
+    BigDecimal pendente,
     BigDecimal restanteHoje,
     LocalDate prazoDecisivo,
     String folgaDeHoje,
@@ -69,12 +72,15 @@ public record PlanoDePagamento(
         List<DespesaPlanejada> despesas,
         CalendarioDeTrabalho calendario
     ) {
+        List<DespesaPlanejada> ordenadas = despesas.stream().sorted(POR_PRAZO).toList();
+        BigDecimal pendente = pendente(hoje, saldoDeOntem, ordenadas, calendario);
+
         List<ItemDoPlano> itens = new ArrayList<>();
         BigDecimal acumulado = BigDecimal.ZERO;
-        BigDecimal metaDiaria = BigDecimal.ZERO;
+        BigDecimal maiorPorDia = BigDecimal.ZERO;
         LocalDate prazoDecisivo = null;
 
-        for (DespesaPlanejada despesa : despesas.stream().sorted(POR_PRAZO).toList()) {
+        for (DespesaPlanejada despesa : ordenadas) {
             acumulado = acumulado.add(despesa.getValor());
             BigDecimal falta = faltaAte(acumulado, saldoAtual);
             int dias = calendario.contarDias(hoje, despesa.getPrazo());
@@ -82,9 +88,10 @@ public record PlanoDePagamento(
             // Do saldo de ontem, e não do de agora: é o que mantém a meta parada durante o
             // dia. Entra mesmo que o ganho de hoje já tenha coberto a despesa — do contrário
             // a meta cairia no meio do dia, e o restante de hoje com ela.
-            BigDecimal porDiaDesdeOntem = porDia(faltaAte(acumulado, saldoDeOntem), dias);
-            if (porDiaDesdeOntem != null && porDiaDesdeOntem.compareTo(metaDiaria) > 0) {
-                metaDiaria = porDiaDesdeOntem;
+            BigDecimal porDiaDesdeOntem = porDia(
+                faltaAte(acumulado, saldoDeOntem).subtract(pendente).max(BigDecimal.ZERO), dias);
+            if (porDiaDesdeOntem != null && porDiaDesdeOntem.compareTo(maiorPorDia) > 0) {
+                maiorPorDia = porDiaDesdeOntem;
                 prazoDecisivo = despesa.getPrazo();
             }
 
@@ -99,6 +106,7 @@ public record PlanoDePagamento(
             ));
         }
 
+        BigDecimal metaDiaria = pendente.add(maiorPorDia);
         BigDecimal ganhoDeHoje = saldoAtual.subtract(saldoDeOntem);
         String folgaDeHoje = calendario.motivoDaFolga(hoje).orElse(null);
         // Na folga, hoje já ficou fora da conta dos dias, e não há o que faltar dele.
@@ -107,9 +115,31 @@ public record PlanoDePagamento(
             : metaDiaria.subtract(ganhoDeHoje).max(BigDecimal.ZERO);
 
         return new PlanoDePagamento(
-            hoje, saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, restanteHoje, prazoDecisivo, folgaDeHoje,
+            hoje, saldoDeOntem, saldoAtual, ganhoDeHoje, metaDiaria, pendente, restanteHoje, prazoDecisivo,
+            folgaDeHoje,
             List.copyOf(itens)
         );
+    }
+
+    /**
+     * O que falta, desde o saldo de ontem, das despesas sem dia de trabalho até o prazo. Elas
+     * vêm antes das outras na ordem do prazo, e por isso basta o acumulado da última delas.
+     */
+    private static BigDecimal pendente(
+        LocalDate hoje,
+        BigDecimal saldoDeOntem,
+        List<DespesaPlanejada> ordenadas,
+        CalendarioDeTrabalho calendario
+    ) {
+        BigDecimal acumulado = BigDecimal.ZERO;
+        BigDecimal pendente = BigDecimal.ZERO;
+        for (DespesaPlanejada despesa : ordenadas) {
+            acumulado = acumulado.add(despesa.getValor());
+            if (calendario.contarDias(hoje, despesa.getPrazo()) == 0) {
+                pendente = faltaAte(acumulado, saldoDeOntem);
+            }
+        }
+        return pendente;
     }
 
     /** Saldo negativo entra como está: é dívida, e aumenta o que falta. */

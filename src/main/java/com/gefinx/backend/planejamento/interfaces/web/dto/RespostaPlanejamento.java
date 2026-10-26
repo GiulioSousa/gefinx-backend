@@ -12,9 +12,11 @@ import java.util.List;
  * O plano do dia. {@code hoje} vai junto porque é o servidor quem decide o dia, pelo fuso
  * configurado, e a tela precisa dele para dizer "vence em 3 dias" sem arriscar discordar.
  *
- * <p>{@code metaDiaria} é zero quando não há o que ganhar, e {@code prazoDecisivo} nulo; o
- * {@code porDia} de cada item é nulo quando ele não entra na meta — coberto, atrasado, ou
- * sem dia de trabalho até o prazo.
+ * <p>{@code metaDiaria} é zero quando não há o que ganhar, e {@code prazoDecisivo} nulo. Dela,
+ * {@code pendente} é a parte que entra inteira, o que falta das atrasadas e das sem dia de
+ * trabalho até o prazo; o resto é o maior {@code porDia}, que já desconta o pendente. O
+ * {@code porDia} de um item é nulo quando ele não tem dias por onde dividir — coberto,
+ * atrasado, ou sem dia de trabalho até o prazo.
  *
  * <p>{@code folgaDeHoje} é o motivo de hoje não contar — "Domingo", o nome do feriado, a
  * descrição do período —, e nulo quando hoje é dia de trabalho.
@@ -25,6 +27,7 @@ public record RespostaPlanejamento(
     BigDecimal saldoAtual,
     BigDecimal ganhoDeHoje,
     BigDecimal metaDiaria,
+    BigDecimal pendente,
     BigDecimal restanteHoje,
     LocalDate prazoDecisivo,
     String folgaDeHoje,
@@ -54,6 +57,7 @@ public record RespostaPlanejamento(
             plano.saldoAtual(),
             plano.ganhoDeHoje(),
             plano.metaDiaria(),
+            plano.pendente(),
             plano.restanteHoje(),
             plano.prazoDecisivo(),
             plano.folgaDeHoje(),
