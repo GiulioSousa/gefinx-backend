@@ -161,10 +161,19 @@ public record PlanoDePagamento(
     /**
      * Atrasada vem antes de coberta: ter o dinheiro não paga a conta, e uma despesa vencida
      * que aparecesse como "coberta" sairia do radar justamente quando mais pede atenção.
+     *
+     * <p><b>Vence hoje vem logo depois, e pela mesma razão.</b> Uma despesa com prazo hoje e
+     * saldo para ela ainda precisa ser paga hoje, e um selo verde de "coberta" diria para
+     * deixar quieto no único dia em que não dá. Ela também sai de {@code SEM_DIAS_DE_TRABALHO},
+     * que até aqui dizia duas coisas ao mesmo tempo — "vence hoje" e "não sobra dia útil até o
+     * prazo" —, e passa a dizer só a segunda.
      */
     private static SituacaoDaDespesa situacao(DespesaPlanejada despesa, BigDecimal falta, int dias, LocalDate hoje) {
         if (despesa.getPrazo().isBefore(hoje)) {
             return SituacaoDaDespesa.ATRASADA;
+        }
+        if (despesa.getPrazo().isEqual(hoje)) {
+            return SituacaoDaDespesa.VENCE_HOJE;
         }
         if (falta.signum() == 0) {
             return SituacaoDaDespesa.COBERTA;

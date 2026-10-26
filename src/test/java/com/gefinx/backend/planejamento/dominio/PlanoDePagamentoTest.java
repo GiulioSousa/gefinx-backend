@@ -124,7 +124,7 @@ class PlanoDePagamentoTest {
             despesa(3L, "Vence hoje", "300.00", SABADO), CARTAO);
 
         ItemDoPlano venceHoje = plano.itens().get(0);
-        assertThat(venceHoje.situacao()).isEqualTo(SituacaoDaDespesa.SEM_DIAS_DE_TRABALHO);
+        assertThat(venceHoje.situacao()).isEqualTo(SituacaoDaDespesa.VENCE_HOJE);
         assertThat(venceHoje.falta()).isEqualByComparingTo("200.00");
         assertThat(venceHoje.diasDeTrabalho()).isZero();
         assertThat(venceHoje.porDia()).isNull();
@@ -137,6 +137,31 @@ class PlanoDePagamentoTest {
         assertThat(plano.metaDiaria()).isEqualByComparingTo("240.00");
         assertThat(plano.restanteHoje()).isEqualByComparingTo("240.00");
         assertThat(plano.prazoDecisivo()).isEqualTo(DIA_20);
+    }
+
+    /**
+     * O prazo de hoje manda no selo, mesmo com o saldo cobrindo: é hoje que ela tem de ser
+     * paga, e "coberta" diria para deixar quieto justamente no último dia.
+     */
+    @Test
+    void oPrazoDeHojeVemAntesDeCoberta() {
+        PlanoDePagamento plano = calcular(SABADO, "500.00", "500.00", despesa(3L, "Vence hoje", "300.00", SABADO));
+
+        ItemDoPlano venceHoje = plano.itens().get(0);
+        assertThat(venceHoje.situacao()).isEqualTo(SituacaoDaDespesa.VENCE_HOJE);
+        assertThat(venceHoje.falta()).isEqualByComparingTo("0");
+        assertThat(venceHoje.porDia()).isNull();
+    }
+
+    /**
+     * Sem dia de trabalho até o prazo continua existindo, e agora quer dizer só isso: o prazo
+     * ainda não chegou, mas não sobra dia útil antes dele.
+     */
+    @Test
+    void semDiaDeTrabalhoNaoSeConfundeComVenceHoje() {
+        PlanoDePagamento plano = calcular(DOMINGO, "0", "0", despesa(1L, "Conta", "100.00", SEGUNDA));
+
+        assertThat(plano.itens().get(0).situacao()).isEqualTo(SituacaoDaDespesa.SEM_DIAS_DE_TRABALHO);
     }
 
     /** Sem outra despesa, o pendente é a meta inteira, e não há prazo para dividir. */
