@@ -212,4 +212,34 @@ class DespesaPlanejadaTest {
         assertThat(encerrada.getTotalDeParcelas()).isEqualTo(5);
         assertThat(encerrada.temProxima()).isFalse();
     }
+
+    /** A etiqueta passa adiante como a descrição, e nenhum dos caminhos que encerram a série a perde. */
+    @Test
+    void aEtiquetaSegueNaSerie() {
+        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, 1, 3, 4L);
+
+        assertThat(atual.proxima().getEtiquetaId()).isEqualTo(4L);
+        assertThat(atual.semRecorrencia().getEtiquetaId()).isEqualTo(4L);
+        assertThat(atual.comoUltimaParcela().getEtiquetaId()).isEqualTo(4L);
+        assertThat(atual.pagaCom(99L).semPagamento().getEtiquetaId()).isEqualTo(4L);
+    }
+
+    @Test
+    void editarSemInformarAEtiquetaMantemADela() {
+        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, null, null, null, 4L);
+
+        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null).getEtiquetaId()).isEqualTo(4L);
+        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null, null, null, null).getEtiquetaId()).isNull();
+    }
+
+    /** Trocar a etiqueta da próxima é editá-la: desfazer o pagamento da anterior não a descarta. */
+    @Test
+    void aProximaComOutraEtiquetaNaoEstaComoNasceu() {
+        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, null, null, 4L);
+        DespesaPlanejada proxima = atual.proxima();
+
+        assertThat(atual.gerouSemMudancas(proxima)).isTrue();
+        assertThat(atual.gerouSemMudancas(proxima.editada("Fone", VALOR, proxima.getPrazo(), Recorrencia.MENSAL, null, null, 5L)))
+            .isFalse();
+    }
 }

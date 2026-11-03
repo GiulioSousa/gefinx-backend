@@ -9,6 +9,8 @@ import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.RepositorioEtiquetas;
+import com.gefinx.backend.planejamento.dominio.excecoes.EtiquetaRecusadaException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.ParcelasRecusadasException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
@@ -36,17 +38,20 @@ import java.util.stream.Collectors;
 public class DespesaPlanejadaService {
 
     private final RepositorioDespesaPlanejada repositorio;
+    private final RepositorioEtiquetas etiquetas;
     private final RegistroDePagamento registroDePagamento;
     private final FonteDeSaldo fonteDeSaldo;
     private final Clock relogio;
 
     public DespesaPlanejadaService(
         RepositorioDespesaPlanejada repositorio,
+        RepositorioEtiquetas etiquetas,
         RegistroDePagamento registroDePagamento,
         FonteDeSaldo fonteDeSaldo,
         Clock relogio
     ) {
         this.repositorio = repositorio;
+        this.etiquetas = etiquetas;
         this.registroDePagamento = registroDePagamento;
         this.fonteDeSaldo = fonteDeSaldo;
         this.relogio = relogio;
@@ -100,10 +105,13 @@ public class DespesaPlanejadaService {
 
     @Transactional
     public DespesaPlanejada criar(Long usuarioId, String descricao, BigDecimal valor, LocalDate prazo, Recorrencia recorrencia) {
-        return criar(usuarioId, descricao, valor, prazo, recorrencia, null, null);
+        return criar(usuarioId, descricao, valor, prazo, recorrencia, null, null, null);
     }
 
-    /** Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última parcela. */
+    /**
+     * Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última parcela. A
+     * etiqueta, se vier, tem de ser de quem cria.
+     */
     @Transactional
     public DespesaPlanejada criar(
         Long usuarioId,
@@ -112,9 +120,13 @@ public class DespesaPlanejadaService {
         LocalDate prazo,
         Recorrencia recorrencia,
         Integer parcela,
-        Integer totalDeParcelas
+        Integer totalDeParcelas,
+        Long etiquetaId
     ) {
-        return repositorio.salvar(DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas));
+        exigirEtiquetaDoUsuario(usuarioId, etiquetaId);
+        return repositorio.salvar(
+            DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, etiquetaId)
+        );
     }
 
     public DespesaPlanejada atualizar(
@@ -126,7 +138,7 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         boolean serieInteira
     ) {
-        return atualizar(usuarioId, id, descricao, valor, prazo, recorrencia, null, null, serieInteira);
+        return atualizar(usuarioId, id, descricao, valor, prazo, recorrencia, null, null, null, serieInteira);
     }
 
     /**
@@ -141,6 +153,9 @@ public class DespesaPlanejadaService {
      * outras, o dela mais a distância até ela: quem vira "3 de 6" leva a seguinte a "4 de 6". As
      * pendentes que passam da nova última saem do plano — reduzir o total de 6 para 4 tira a 5 e
      * a 6 —, mas uma paga acima do novo total recusa a edição: o que foi pago não some.
+     *
+     * <p>A etiqueta segue o mesmo caminho da descrição: na série inteira, vale para todas as
+     * pendentes; sem, só para esta, e a seguinte que ela gerar nasce com a dela.
      */
     @Transactional
     public DespesaPlanejada atualizar(
@@ -152,10 +167,12 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         Integer parcela,
         Integer totalDeParcelas,
+        Long etiquetaId,
         boolean serieInteira
     ) {
         DespesaPlanejada existente = buscarOuLancar(usuarioId, id);
-        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia, parcela, totalDeParcelas);
+        exigirEtiquetaDoUsuario(usuarioId, etiquetaId);
+        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia, parcela, totalDeParcelas, etiquetaId);
         if (serieInteira && existente.seRepete()) {
             List<DespesaPlanejada> serie = ocorrenciasDaSerie(usuarioId, existente);
             int posicao = serie.indexOf(existente);
@@ -174,6 +191,17 @@ public class DespesaPlanejadaService {
             }
         }
         return repositorio.salvar(editada);
+    }
+
+    /**
+     * A etiqueta de outra pessoa é recusada como a que não existe: dizer qual dos dois seria
+     * contar a quem pergunta que o id existe. O banco recusaria de qualquer jeito, pela chave
+     * composta da V17, mas como erro.
+     */
+    private void exigirEtiquetaDoUsuario(Long usuarioId, Long etiquetaId) {
+        if (etiquetaId != null && etiquetas.buscarPorIdEUsuario(etiquetaId, usuarioId).isEmpty()) {
+            throw new EtiquetaRecusadaException("etiquetaId", "Etiqueta não encontrada");
+        }
     }
 
     /**

@@ -23,6 +23,9 @@ import java.util.Objects;
  * <p>A que se repete pode ter fim: {@code parcela} de {@code totalDeParcelas}, como a compra
  * parcelada no cartão ou a mensalidade de um curso. Cada ocorrência leva o seu número, a
  * seguinte nasce com o próximo, e a última não gera outra. Sem os dois, a série não acaba.
+ *
+ * <p>{@code etiquetaId} é a marca visual — de que cartão é a compra —, opcional. Passa para a
+ * ocorrência seguinte como o resto, e não muda conta nenhuma.
  */
 public class DespesaPlanejada {
 
@@ -43,6 +46,7 @@ public class DespesaPlanejada {
     private final Long anteriorId;
     private final Integer parcela;
     private final Integer totalDeParcelas;
+    private final Long etiquetaId;
 
     public DespesaPlanejada(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId) {
         this(id, descricao, valor, prazo, usuarioId, null);
@@ -79,6 +83,23 @@ public class DespesaPlanejada {
         Integer parcela,
         Integer totalDeParcelas
     ) {
+        this(id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, anteriorId, parcela, totalDeParcelas, null);
+    }
+
+    public DespesaPlanejada(
+        Long id,
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Long usuarioId,
+        Long transacaoId,
+        Recorrencia recorrencia,
+        Integer diaDoVencimento,
+        Long anteriorId,
+        Integer parcela,
+        Integer totalDeParcelas,
+        Long etiquetaId
+    ) {
         this.id = id;
         this.descricao = descricao;
         this.valor = valor;
@@ -90,11 +111,24 @@ public class DespesaPlanejada {
         this.anteriorId = anteriorId;
         this.parcela = parcela;
         this.totalDeParcelas = totalDeParcelas;
+        this.etiquetaId = etiquetaId;
     }
 
     /** O dia do prazo vira a âncora do mensal: quem cadastra no dia 31 quer o 31. */
     public static DespesaPlanejada nova(String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId, Recorrencia recorrencia) {
         return nova(descricao, valor, prazo, usuarioId, recorrencia, null, null);
+    }
+
+    public static DespesaPlanejada nova(
+        String descricao,
+        BigDecimal valor,
+        LocalDate prazo,
+        Long usuarioId,
+        Recorrencia recorrencia,
+        Integer parcela,
+        Integer totalDeParcelas
+    ) {
+        return nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, null);
     }
 
     /** Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última: "2 de 6" vai até a 6. */
@@ -105,12 +139,13 @@ public class DespesaPlanejada {
         Long usuarioId,
         Recorrencia recorrencia,
         Integer parcela,
-        Integer totalDeParcelas
+        Integer totalDeParcelas,
+        Long etiquetaId
     ) {
         exigirParcelasValidas(recorrencia, parcela, totalDeParcelas);
         return new DespesaPlanejada(
             null, descricao, valor, prazo, usuarioId, null, recorrencia, ancora(recorrencia, prazo), null,
-            parcela, totalDeParcelas
+            parcela, totalDeParcelas, etiquetaId
         );
     }
 
@@ -131,19 +166,31 @@ public class DespesaPlanejada {
         Integer novaParcela,
         Integer novoTotalDeParcelas
     ) {
+        return editada(novaDescricao, novoValor, novoPrazo, novaRecorrencia, novaParcela, novoTotalDeParcelas, etiquetaId);
+    }
+
+    public DespesaPlanejada editada(
+        String novaDescricao,
+        BigDecimal novoValor,
+        LocalDate novoPrazo,
+        Recorrencia novaRecorrencia,
+        Integer novaParcela,
+        Integer novoTotalDeParcelas,
+        Long novaEtiquetaId
+    ) {
         exigirParcelasValidas(novaRecorrencia, novaParcela, novoTotalDeParcelas);
         Integer novoDia = novaRecorrencia == Recorrencia.MENSAL && novoPrazo.equals(prazo) && diaDoVencimento != null
             ? diaDoVencimento
             : ancora(novaRecorrencia, novoPrazo);
         return new DespesaPlanejada(
             id, novaDescricao, novoValor, novoPrazo, usuarioId, transacaoId, novaRecorrencia, novoDia, anteriorId,
-            novaParcela, novoTotalDeParcelas
+            novaParcela, novoTotalDeParcelas, novaEtiquetaId
         );
     }
 
     /**
      * Esta ocorrência com a mudança que outra da mesma série sofreu, de {@code antes} para
-     * {@code depois}: descrição, valor e repetição vêm de {@code depois}. Um prazo mudado
+     * {@code depois}: descrição, valor, repetição e etiqueta vêm de {@code depois}. Um prazo mudado
      * desloca este do mesmo jeito — na semanal, o mesmo número de dias; na mensal, o novo dia
      * do mês, que vira a âncora e cai no último dia dos meses que não o têm.
      *
@@ -165,7 +212,7 @@ public class DespesaPlanejada {
         boolean semRepeticao = depois.recorrencia == null;
         return new DespesaPlanejada(
             id, depois.descricao, depois.valor, novoPrazo, usuarioId, transacaoId, depois.recorrencia, novoDia, anteriorId,
-            semRepeticao ? null : parcela, semRepeticao ? null : totalDeParcelas
+            semRepeticao ? null : parcela, semRepeticao ? null : totalDeParcelas, depois.etiquetaId
         );
     }
 
@@ -174,7 +221,7 @@ public class DespesaPlanejada {
         exigirParcelasValidas(recorrencia, novaParcela, novoTotalDeParcelas);
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, anteriorId,
-            novaParcela, novoTotalDeParcelas
+            novaParcela, novoTotalDeParcelas, etiquetaId
         );
     }
 
@@ -189,12 +236,12 @@ public class DespesaPlanejada {
     public DespesaPlanejada pagaCom(Long novaTransacaoId) {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, novaTransacaoId, recorrencia, diaDoVencimento, anteriorId,
-            parcela, totalDeParcelas
+            parcela, totalDeParcelas, etiquetaId
         );
     }
 
     /**
-     * A ocorrência seguinte: mesma descrição, mesmo valor — que se edita se a conta vier
+     * A ocorrência seguinte: mesma descrição, mesma etiqueta, mesmo valor — que se edita se a conta vier
      * diferente —, e o prazo um período adiante. Na parcelada, com o número seguinte. Só existe
      * para a que se repete e não é a última parcela.
      */
@@ -204,7 +251,7 @@ public class DespesaPlanejada {
         }
         return new DespesaPlanejada(
             null, descricao, valor, recorrencia.proximoPrazo(prazo, diaDoVencimento), usuarioId, null,
-            recorrencia, diaDoVencimento, id, parcela == null ? null : parcela + 1, totalDeParcelas
+            recorrencia, diaDoVencimento, id, parcela == null ? null : parcela + 1, totalDeParcelas, etiquetaId
         );
     }
 
@@ -221,13 +268,13 @@ public class DespesaPlanejada {
     public DespesaPlanejada ligadaA(Long novoAnteriorId) {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, novoAnteriorId,
-            parcela, totalDeParcelas
+            parcela, totalDeParcelas, etiquetaId
         );
     }
 
     /** A série acaba nesta: nem paga, nem atrasada, ela gera a seguinte. */
     public DespesaPlanejada semRecorrencia() {
-        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId);
+        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId, null, null, etiquetaId);
     }
 
     /**
@@ -245,7 +292,7 @@ public class DespesaPlanejada {
 
     /**
      * Se {@code sucessora} está como {@link #proxima()} a gerou: mesma descrição, valor, prazo,
-     * repetição e parcela. É o que separa a próxima que se pode descartar ao desfazer este
+     * repetição, parcela e etiqueta. É o que separa a próxima que se pode descartar ao desfazer este
      * pagamento da que alguém já ajustou — o valor da conta do mês, por exemplo — e que deve
      * ficar.
      */
@@ -259,7 +306,8 @@ public class DespesaPlanejada {
             && sucessora.prazo.equals(esperada.prazo)
             && sucessora.recorrencia == esperada.recorrencia
             && Objects.equals(sucessora.parcela, esperada.parcela)
-            && Objects.equals(sucessora.totalDeParcelas, esperada.totalDeParcelas);
+            && Objects.equals(sucessora.totalDeParcelas, esperada.totalDeParcelas)
+            && Objects.equals(sucessora.etiquetaId, esperada.etiquetaId);
     }
 
     public boolean estaPaga() {
@@ -348,5 +396,9 @@ public class DespesaPlanejada {
 
     public Integer getTotalDeParcelas() {
         return totalDeParcelas;
+    }
+
+    public Long getEtiquetaId() {
+        return etiquetaId;
     }
 }

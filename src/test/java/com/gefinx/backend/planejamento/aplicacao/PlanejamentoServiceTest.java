@@ -9,6 +9,7 @@ import com.gefinx.backend.planejamento.dominio.PlanoDePagamento;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioContasDeFora;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.RepositorioEtiquetas;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -142,7 +143,7 @@ class PlanejamentoServiceTest {
     private PlanejamentoService servicoEm(Instant instante) {
         Clock relogio = Clock.fixed(instante, SAO_PAULO);
         DespesaPlanejadaService despesas = new DespesaPlanejadaService(
-            repositorioDespesa, mock(RegistroDePagamento.class), fonteDeSaldo, relogio
+            repositorioDespesa, mock(RepositorioEtiquetas.class), mock(RegistroDePagamento.class), fonteDeSaldo, relogio
         );
         // Sem feriados: o 12/10 cai entre os exemplos, e o que se testa aqui é o saldo, não o
         // calendário, que tem os próprios testes.

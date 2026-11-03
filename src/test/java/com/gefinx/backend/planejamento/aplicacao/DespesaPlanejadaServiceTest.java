@@ -2,13 +2,17 @@ package com.gefinx.backend.planejamento.aplicacao;
 
 import com.gefinx.backend.planejamento.dominio.DesfechoDaProxima;
 import com.gefinx.backend.planejamento.dominio.DespesaPaga;
+import com.gefinx.backend.planejamento.dominio.CorDaEtiqueta;
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.Etiqueta;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
 import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
 import com.gefinx.backend.planejamento.dominio.Pagina;
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
 import com.gefinx.backend.planejamento.dominio.RegistroDePagamento;
 import com.gefinx.backend.planejamento.dominio.RepositorioDespesaPlanejada;
+import com.gefinx.backend.planejamento.dominio.RepositorioEtiquetas;
+import com.gefinx.backend.planejamento.dominio.excecoes.EtiquetaRecusadaException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.RecursoNaoEncontradoNoPlanejamentoException;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,6 +45,7 @@ class DespesaPlanejadaServiceTest {
     private static final Long USUARIO = 1L;
     private static final Long OUTRO_USUARIO = 2L;
     private static final Long DESPESA = 5L;
+    private static final Long ETIQUETA = 3L;
 
     private static final Long CATEGORIA = 7L;
     private static final Long CONTA = 8L;
@@ -49,6 +54,7 @@ class DespesaPlanejadaServiceTest {
     private static final ZoneId SAO_PAULO = ZoneId.of("America/Sao_Paulo");
 
     private RepositorioDespesaPlanejada repositorio;
+    private RepositorioEtiquetas etiquetas;
     private RegistroDePagamento registroDePagamento;
     private FonteDeSaldo fonteDeSaldo;
     private DespesaPlanejadaService servico;
@@ -56,16 +62,47 @@ class DespesaPlanejadaServiceTest {
     @BeforeEach
     void preparar() {
         repositorio = mock(RepositorioDespesaPlanejada.class);
+        etiquetas = mock(RepositorioEtiquetas.class);
         registroDePagamento = mock(RegistroDePagamento.class);
         fonteDeSaldo = mock(FonteDeSaldo.class);
         servico = new DespesaPlanejadaService(
-            repositorio, registroDePagamento, fonteDeSaldo,
+            repositorio, etiquetas, registroDePagamento, fonteDeSaldo,
             Clock.fixed(HOJE.atStartOfDay(SAO_PAULO).plusHours(12).toInstant(), SAO_PAULO)
         );
         when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(
             new DespesaPlanejada(DESPESA, "Aluguel", new BigDecimal("1500.00"), LocalDate.of(2026, 10, 10), USUARIO)
         ));
         when(repositorio.buscarPendentePorIdEUsuario(DESPESA, OUTRO_USUARIO)).thenReturn(Optional.empty());
+        when(etiquetas.buscarPorIdEUsuario(ETIQUETA, USUARIO)).thenReturn(Optional.of(
+            new Etiqueta(ETIQUETA, "Nubank", CorDaEtiqueta.ROXO)
+        ));
+        when(etiquetas.buscarPorIdEUsuario(ETIQUETA, OUTRO_USUARIO)).thenReturn(Optional.empty());
+    }
+
+    @Test
+    void criaComAEtiquetaDoProprioUsuario() {
+        servico.criar(USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, ETIQUETA);
+
+        verify(repositorio).salvar(argThat(despesa -> ETIQUETA.equals(despesa.getEtiquetaId())));
+    }
+
+    /** A de outra pessoa é recusada como a que não existe, antes de gravar qualquer coisa. */
+    @Test
+    void naoCriaComEtiquetaDeOutroUsuario() {
+        assertThatThrownBy(() -> servico.criar(OUTRO_USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, ETIQUETA))
+            .isInstanceOf(EtiquetaRecusadaException.class)
+            .hasMessage("Etiqueta não encontrada");
+        verify(repositorio, never()).salvar(any());
+    }
+
+    @Test
+    void naoEditaParaEtiquetaDeOutroUsuario() {
+        when(etiquetas.buscarPorIdEUsuario(9L, USUARIO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> servico.atualizar(
+            USUARIO, DESPESA, "Aluguel", BigDecimal.TEN, HOJE, null, null, null, 9L, false
+        )).isInstanceOf(EtiquetaRecusadaException.class);
+        verify(repositorio, never()).salvar(any());
     }
 
     @Test
@@ -325,6 +362,19 @@ class DespesaPlanejadaServiceTest {
         verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && despesa.getValor().compareTo(new BigDecimal("650.00")) == 0));
         verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(DESPESA)));
         verify(repositorio, never()).salvar(argThat(despesa -> despesa.getId().equals(4L)));
+    }
+
+    /** A etiqueta posta na série inteira chega às outras pendentes; tirada, sai de todas. */
+    @Test
+    void editarASerieLevaAEtiquetaAsOutrasPendentes() {
+        when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, null, null)));
+        when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(semanal(6L, 7, DESPESA, null)));
+        when(repositorio.buscarSucessora(6L)).thenReturn(Optional.empty());
+
+        servico.atualizar(USUARIO, DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE, Recorrencia.SEMANAL, null, null, ETIQUETA, true);
+
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && ETIQUETA.equals(despesa.getEtiquetaId())));
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(DESPESA) && ETIQUETA.equals(despesa.getEtiquetaId())));
     }
 
     /** A próxima vence nos 30 dias do plano: fica, porque a desfeita a teria de qualquer jeito. */

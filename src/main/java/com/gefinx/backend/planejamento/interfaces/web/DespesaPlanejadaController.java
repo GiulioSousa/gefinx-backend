@@ -62,7 +62,7 @@ public class DespesaPlanejadaController {
     public ResponseEntity<RespostaDespesaPlanejada> criar(@Valid @RequestBody RequisicaoDespesaPlanejada requisicao) {
         DespesaPlanejada despesa = despesaPlanejadaService.criar(
             UsuarioAutenticado.obterId(), requisicao.descricao(), requisicao.valor(), requisicao.prazo(), requisicao.recorrencia(),
-            requisicao.parcela(), requisicao.totalDeParcelas()
+            requisicao.parcela(), requisicao.totalDeParcelas(), requisicao.etiquetaId()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(RespostaDespesaPlanejada.apartirDoDominio(despesa));
     }
@@ -76,7 +76,7 @@ public class DespesaPlanejadaController {
     ) {
         return RespostaDespesaPlanejada.apartirDoDominio(despesaPlanejadaService.atualizar(
             UsuarioAutenticado.obterId(), id, requisicao.descricao(), requisicao.valor(), requisicao.prazo(),
-            requisicao.recorrencia(), requisicao.parcela(), requisicao.totalDeParcelas(), serie
+            requisicao.recorrencia(), requisicao.parcela(), requisicao.totalDeParcelas(), requisicao.etiquetaId(), serie
         ));
     }
 

@@ -24,7 +24,8 @@ public record RespostaDespesaPaga(
     boolean pagaComAtraso,
     Recorrencia recorrencia,
     Integer parcela,
-    Integer totalDeParcelas
+    Integer totalDeParcelas,
+    Long etiquetaId
 ) {
 
     public static RespostaDespesaPaga apartirDoDominio(DespesaPaga paga) {
@@ -42,7 +43,8 @@ public record RespostaDespesaPaga(
             paga.pagaComAtraso(),
             paga.despesa().getRecorrencia(),
             paga.despesa().getParcela(),
-            paga.despesa().getTotalDeParcelas()
+            paga.despesa().getTotalDeParcelas(),
+            paga.despesa().getEtiquetaId()
         );
     }
 }

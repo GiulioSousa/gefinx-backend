@@ -9,6 +9,7 @@ import com.gefinx.backend.financas.dominio.excecoes.TipoDaCategoriaEmUsoExceptio
 import com.gefinx.backend.financas.dominio.excecoes.TipoIncompativelComCategoriaException;
 import com.gefinx.backend.financas.dominio.excecoes.RecursoNaoEncontradoException;
 import com.gefinx.backend.financas.dominio.excecoes.SaldoNegativoException;
+import com.gefinx.backend.planejamento.dominio.excecoes.EtiquetaRecusadaException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PagamentoNaoDesfeitoException;
 import com.gefinx.backend.planejamento.dominio.excecoes.ParcelasRecusadasException;
 import com.gefinx.backend.planejamento.dominio.excecoes.PeriodoSemTrabalhoRecusadoException;
@@ -83,6 +84,15 @@ public class ManipuladorGlobalDeExcecoes {
     /** Como o período recusado: com o campo, para o erro aparecer embaixo dele. */
     @ExceptionHandler(ParcelasRecusadasException.class)
     public ResponseEntity<ErroResposta> tratarParcelasRecusadas(ParcelasRecusadasException excecao) {
+        ErroResposta corpo = new ErroResposta(
+            HttpStatus.BAD_REQUEST.value(), excecao.getMessage(), Map.of(excecao.getCampo(), excecao.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(corpo);
+    }
+
+    /** Como as parcelas recusadas: com o campo, para o erro aparecer embaixo dele. */
+    @ExceptionHandler(EtiquetaRecusadaException.class)
+    public ResponseEntity<ErroResposta> tratarEtiquetaRecusada(EtiquetaRecusadaException excecao) {
         ErroResposta corpo = new ErroResposta(
             HttpStatus.BAD_REQUEST.value(), excecao.getMessage(), Map.of(excecao.getCampo(), excecao.getMessage())
         );

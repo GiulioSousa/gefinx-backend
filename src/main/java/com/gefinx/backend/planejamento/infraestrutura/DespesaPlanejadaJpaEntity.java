@@ -54,6 +54,9 @@ public class DespesaPlanejadaJpaEntity {
     @Column(name = "total_de_parcelas")
     private Short totalDeParcelas;
 
+    @Column(name = "etiqueta_id")
+    private Long etiquetaId;
+
     protected DespesaPlanejadaJpaEntity() {
     }
 
@@ -70,6 +73,7 @@ public class DespesaPlanejadaJpaEntity {
         entidade.anteriorId = despesa.getAnteriorId();
         entidade.parcela = paraShort(despesa.getParcela());
         entidade.totalDeParcelas = paraShort(despesa.getTotalDeParcelas());
+        entidade.etiquetaId = despesa.getEtiquetaId();
         return entidade;
     }
 
@@ -77,7 +81,8 @@ public class DespesaPlanejadaJpaEntity {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia,
             diaDoVencimento == null ? null : diaDoVencimento.intValue(), anteriorId,
-            parcela == null ? null : parcela.intValue(), totalDeParcelas == null ? null : totalDeParcelas.intValue()
+            parcela == null ? null : parcela.intValue(), totalDeParcelas == null ? null : totalDeParcelas.intValue(),
+            etiquetaId
         );
     }
 
