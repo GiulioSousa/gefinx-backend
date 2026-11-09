@@ -1,0 +1,72 @@
+# Build e testes a cada push na main e a cada pull request. A suíte inteira roda, inclusive os
+# testes de integração, contra um PostgreSQL 16 — a versão maior do servidor — preparado como em
+# produção: banco gefinx_db, roles do db/criar-roles.sql e o Flyway criando o schema na subida.
+#
+# Os PRs que o release-please abre não disparam este workflow: são criados com o GITHUB_TOKEN, e o
+# GitHub não encadeia workflows por ele. O código deles já passou por aqui no push que os gerou.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gefinx_db
+        # A 5433 é a porta padrão do application.yml (DB_URL), a mesma do desenvolvimento.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGPASSWORD: postgres
+      # Senhas descartáveis, só deste banco de CI. O segredo do JWT é gerado no passo abaixo.
+      DB_PASSWORD: ci-senha-da-aplicacao
+      DB_MIGRACAO_PASSWORD: ci-senha-da-migracao
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Cria as roles da aplicação
+        run: |
+          sed -e "s/SENHA_DA_MIGRACAO/$DB_MIGRACAO_PASSWORD/" -e "s/SENHA_DA_APLICACAO/$DB_PASSWORD/" \
+            db/criar-roles.sql > "$RUNNER_TEMP/criar-roles.sql"
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5433 -U postgres -d gefinx_db -f "$RUNNER_TEMP/criar-roles.sql"
+
+      - name: Gera o segredo do JWT
+        run: |
+          segredo="$(openssl rand -base64 64 | tr -d '\n')"
+          echo "::add-mask::$segredo"
+          echo "JWT_SECRET=$segredo" >> "$GITHUB_ENV"
+
+      - name: Build e testes
+        run: bash ./mvnw -B verify
+
+      - name: Confere o jar
+        run: |
+          test -f target/gefinx-backend.jar
+          if unzip -l target/gefinx-backend.jar | grep -q application-local; then
+            echo "O jar leva application-local" >&2
+            exit 1
+          fi
