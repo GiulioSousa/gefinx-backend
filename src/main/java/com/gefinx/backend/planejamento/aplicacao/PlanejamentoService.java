@@ -60,7 +60,7 @@ public class PlanejamentoService {
      * presa ao saldo de ontem, era preciso descontar os pagamentos de hoje também dele.
      *
      * <p><b>O custo diário</b> soma as despesas das categorias escolhidas nos 30 dias até ontem,
-     * com três exclusões: as das contas de fora, que nunca passaram pelo saldo do planejamento;
+     * e divide cada categoria pelos dias em que houve gasto nela, com três exclusões: as das contas de fora, que nunca passaram pelo saldo do planejamento;
      * os pagamentos de despesa planejada, que já estavam no plano — um "Mercado do mês" pago em
      * Alimentação seria cobrado duas vezes —; e as de hoje, para a média não mudar a cada gasto.
      * O gasto de hoje nessas categorias é devolvido ao saldo da meta (ver {@link PlanoDePagamento}).
@@ -83,9 +83,9 @@ public class PlanejamentoService {
         BigDecimal gastoDeHojeNoCusto = BigDecimal.ZERO;
         if (!categoriasDoCusto.isEmpty()) {
             List<Lancamento> gastosDoCusto = gastosDoCustoDiario(usuarioId, hoje, contasDeFora, categoriasDoCusto);
-            custoDiario = CustoDiario.calcular(hoje, valores(gastosDoCusto.stream()
+            custoDiario = CustoDiario.calcular(hoje, categoriasDoCusto, gastosDoCusto.stream()
                 .filter(gasto -> gasto.data().isBefore(hoje))
-                .toList()), calendario);
+                .toList());
             gastoDeHojeNoCusto = somar(gastosDoCusto.stream()
                 .filter(gasto -> gasto.data().isEqual(hoje))
                 .toList());
@@ -124,12 +124,8 @@ public class PlanejamentoService {
             .toList();
     }
 
-    private static List<BigDecimal> valores(List<Lancamento> lancamentos) {
-        return lancamentos.stream().map(Lancamento::valor).toList();
-    }
-
     private static BigDecimal somar(List<Lancamento> lancamentos) {
-        return valores(lancamentos).stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        return lancamentos.stream().map(Lancamento::valor).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     public List<ContaDoPlanejamento> listarContas(Long usuarioId) {

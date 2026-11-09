@@ -95,12 +95,13 @@ class PlanejamentoServiceTest {
     }
 
     /**
-     * Da janela de 27/08 a 25/09 (26 dias de trabalho), só a despesa de 100 entra: a de 50
-     * saiu da carteira, que está fora; a de 300 é o pagamento de uma planejada; a de 70 é de
-     * outra categoria. A de 30, de hoje, não entra na média, e volta para o saldo da meta.
+     * Entram a de 100 e a de 20, de sexta, e a de 60, de quinta: 180 em dois dias com gasto, 90
+     * por dia. A de 50 saiu da carteira, que está fora; a de 300 é o pagamento de uma planejada;
+     * a de 70 é de outra categoria. A de 30, de hoje, não entra na média, e volta para o saldo
+     * da meta.
      */
     @Test
-    void oCustoDiarioEAMediaDasCategoriasEscolhidas() {
+    void oCustoDiarioEAMediaDasCategoriasEscolhidasPelosDiasComGasto() {
         when(repositorioContasDeFora.listarPorUsuario(USUARIO)).thenReturn(Set.of(ESPECIE));
         when(repositorioCategorias.listarPorUsuario(USUARIO)).thenReturn(Set.of(ALIMENTACAO));
         when(fonteDeSaldo.saldoAte(USUARIO, SABADO, Set.of(ESPECIE))).thenReturn(new BigDecimal("970.00"));
@@ -109,23 +110,25 @@ class PlanejamentoServiceTest {
             lancamento(81L, "50.00", SEXTA, ESPECIE, ALIMENTACAO),
             lancamento(82L, "300.00", SEXTA, BANCO, ALIMENTACAO),
             lancamento(83L, "70.00", SEXTA, BANCO, LAZER),
-            lancamento(84L, "30.00", SABADO, BANCO, ALIMENTACAO)
+            lancamento(84L, "30.00", SABADO, BANCO, ALIMENTACAO),
+            lancamento(85L, "20.00", SEXTA, BANCO, ALIMENTACAO),
+            lancamento(86L, "60.00", SEXTA.minusDays(1), BANCO, ALIMENTACAO)
         ));
-        when(repositorioDespesa.filtrarPagamentos(USUARIO, List.of(80L, 82L, 84L))).thenReturn(Set.of(82L));
+        when(repositorioDespesa.filtrarPagamentos(USUARIO, List.of(80L, 82L, 84L, 85L, 86L))).thenReturn(Set.of(82L));
         when(repositorioDespesa.listarPendentesPorUsuario(USUARIO)).thenReturn(List.of(
             new DespesaPlanejada(1L, "Cartão", new BigDecimal("2300.00"), LocalDate.of(2026, 10, 20), USUARIO)
         ));
 
         PlanoDePagamento plano = servicoEm(SABADO_AS_15H).montar(USUARIO);
 
-        assertThat(plano.custoDiario().total()).isEqualByComparingTo("100.00");
-        assertThat(plano.custoDiario().diasDeTrabalho()).isEqualTo(26);
-        assertThat(plano.custoDiario().porDia()).isEqualByComparingTo("3.85");
+        assertThat(plano.custoDiario().total()).isEqualByComparingTo("180.00");
+        assertThat(plano.custoDiario().categorias().get(0).diasComGasto()).isEqualTo(2);
+        assertThat(plano.custoDiario().porDia()).isEqualByComparingTo("90.00");
         assertThat(plano.itens().get(0).falta())
             .as("a falta é dinheiro de verdade, e o gasto de hoje saiu dele")
             .isEqualByComparingTo("1330.00");
-        // (2300 - 1000) / 20 = 65, com os 30 de hoje devolvidos, mais 3,85 do custo.
-        assertThat(plano.metaDiaria()).isEqualByComparingTo("68.85");
+        // (2300 - 1000) / 20 = 65, com os 30 de hoje devolvidos, mais 90 do custo.
+        assertThat(plano.metaDiaria()).isEqualByComparingTo("155.00");
     }
 
     @Test

@@ -14,7 +14,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -691,7 +690,7 @@ class PlanejamentoTest {
         )).isZero();
     }
 
-    /** 260 nos 30 dias até ontem, divididos pelos dias de trabalho da janela, com os feriados nacionais. */
+    /** 260 nos 30 dias até ontem, em dois dias com gasto: 130 por dia. O de 31 dias atrás fica fora. */
     @Test
     void oCustoDiarioEAMediaDosTrintaDiasEEntraNaMeta() {
         long alimentacao = criarCategoriaDeDespesa("Alimentação");
@@ -706,11 +705,12 @@ class PlanejamentoTest {
         JsonNode plano = obter("/api/planejamento");
         JsonNode custo = plano.get("custoDiario");
 
-        int dias = CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of()).contarDias(hoje.minusDays(30), hoje);
-        BigDecimal porDia = new BigDecimal("260.00").divide(BigDecimal.valueOf(dias), 2, RoundingMode.CEILING);
+        BigDecimal porDia = new BigDecimal("130.00");
         assertThat(custo.get("total").decimalValue()).isEqualByComparingTo("260.00");
-        assertThat(custo.get("diasDeTrabalho").asInt()).isEqualTo(dias);
         assertThat(custo.get("porDia").decimalValue()).isEqualByComparingTo(porDia);
+        JsonNode media = custo.get("categorias").get(0);
+        assertThat(media.get("categoriaId").asLong()).isEqualTo(alimentacao);
+        assertThat(media.get("diasComGasto").asInt()).isEqualTo(2);
         assertThat(custo.get("inicio").asString()).isEqualTo(hoje.minusDays(30).toString());
         assertThat(custo.get("fim").asString()).isEqualTo(hoje.minusDays(1).toString());
         assertThat(plano.get("metaDiaria").decimalValue())

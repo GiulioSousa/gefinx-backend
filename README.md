@@ -294,7 +294,7 @@ Base: `http://localhost:8080/api`
 | `POST` | `/despesas-planejadas/{id}/pagamento` | Bearer | `201` + `{transacaoId}` — lança a despesa em finanças e tira a planejada do plano; excluir a transação a devolve. Se ela se repete, a próxima entra no plano, com o mesmo valor |
 | `GET` | `/despesas-planejadas/pagas` | Bearer | histórico paginado (`pagina`, `tamanho` ≤ 100), do prazo mais recente: o planejado ao lado do pago, com data, conta, categoria e `pagaComAtraso` |
 | `DELETE` | `/despesas-planejadas/{id}/pagamento` | Bearer | `200` + `{proxima}` — exclui a transação e devolve a despesa ao plano; a próxima ocorrência sai junto se ainda está como nasceu (`REMOVIDA`), fica se foi editada (`MANTIDA`) ou se ela vence nos 30 dias do plano (`MANTIDA_NO_PERIODO`); `409` se ela já foi paga |
-| `GET` | `/planejamento` | Bearer | o plano do dia: saldo de agora, receitas de hoje, meta diária com o custo diário (`custoDiario`, ou nulo sem categoria escolhida) e, por despesa, o que falta e quanto ganhar por dia; `folgaDeHoje` diz por que hoje não conta (`Domingo`, o feriado, o período), ou é nulo |
+| `GET` | `/planejamento` | Bearer | o plano do dia: saldo de agora, receitas de hoje, meta diária com o custo diário (`custoDiario`, com a média de cada categoria, ou nulo sem categoria escolhida) e, por despesa, o que falta e quanto ganhar por dia; `folgaDeHoje` diz por que hoje não conta (`Domingo`, o feriado, o período), ou é nulo |
 | `GET` `PUT` | `/planejamento/contas` | Bearer | as contas, cada uma com `entraNoPlanejamento`; o `PUT` recebe `{contasDeFora: [ids]}` — a escolha inteira |
 | `GET` `PUT` | `/planejamento/categorias` | Bearer | as categorias de despesa, cada uma com `entraNoCustoDiario`; o `PUT` recebe `{categoriasDoCustoDiario: [ids]}` — a escolha inteira; de receita ou alheia dá `404` |
 | `GET` | `/planejamento/calendario?ano=2026` | Bearer | os feriados nacionais do ano (2000–2100), cada um com `ignorado`, e os períodos sem trabalho que tocam o ano |
@@ -317,8 +317,9 @@ sábado, menos os feriados nacionais não ignorados e os períodos sem trabalho,
 não o dia do prazo —, ficando com o maior. Os feriados são calculados, para qualquer ano: os de
 lei federal, com a Paixão de Cristo pela Páscoa; Carnaval, Corpus Christi e feriado local entram
 como período. Ela sai do saldo de agora e acompanha cada lançamento: é quanto ainda falta ganhar
-por dia, contando o resto de hoje. Soma-se a ela o **custo diário**, a média dos gastos das
-categorias escolhidas (alimentação, combustível) nos 30 dias até ontem, por dia de trabalho, sem
+por dia, contando o resto de hoje. Soma-se a ela o **custo diário**: a média de cada categoria
+escolhida (alimentação, combustível) nos 30 dias até ontem, dividida pelos dias em que houve gasto
+nela, sem
 pagamentos de despesa planejada nem contas de fora; o gasto de hoje nessas categorias não sobe a
 meta, porque já está na média. "Hoje" é decidido no fuso de
 `gefinx.planejamento.fuso-horario` (padrão `America/Sao_Paulo`), e não no do servidor.

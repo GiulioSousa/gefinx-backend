@@ -24,7 +24,8 @@ class PlanoDePagamentoTest {
 
     /** R$ 50,00 por dia de trabalho, de uma janela qualquer: o cálculo da média tem os próprios testes. */
     private static final CustoDiario CINQUENTA_POR_DIA = new CustoDiario(
-        SABADO.minusDays(30), SABADO.minusDays(1), new BigDecimal("1300.00"), 26, new BigDecimal("50.00"));
+        SABADO.minusDays(30), SABADO.minusDays(1), new BigDecimal("1000.00"), new BigDecimal("50.00"),
+        List.of(new CustoDiario.MediaDaCategoria(20L, new BigDecimal("1000.00"), 20, new BigDecimal("50.00"))));
 
     @Test
     void oExemploDoPlanejamento() {

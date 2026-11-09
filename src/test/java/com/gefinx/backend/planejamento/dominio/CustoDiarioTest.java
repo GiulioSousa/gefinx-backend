@@ -1,9 +1,11 @@
 package com.gefinx.backend.planejamento.dominio;
 
+import com.gefinx.backend.planejamento.dominio.CustoDiario.MediaDaCategoria;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -11,67 +13,85 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CustoDiarioTest {
 
-    /** Segunda. A janela vai de sábado 29/08 a domingo 27/09: 30 dias, 25 de trabalho. */
     private static final LocalDate SEGUNDA = LocalDate.of(2026, 9, 28);
+    private static final Long ALIMENTACAO = 20L;
+    private static final Long COMBUSTIVEL = 21L;
 
     @Test
     void aJanelaSaoOsTrintaDiasAteOntem() {
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, List.of(), CalendarioDeTrabalho.SEGUNDA_A_SABADO);
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(), List.of());
 
         assertThat(custo.inicio()).isEqualTo(LocalDate.of(2026, 8, 29));
         assertThat(custo.fim()).isEqualTo(LocalDate.of(2026, 9, 27));
     }
 
-    /** Come-se no domingo também, mas é nos dias de trabalho que se ganha para isso. */
+    /** O exemplo do dono: combustível em 15 dos 30 dias soma os 15 e divide por 15, e não por 30. */
     @Test
-    void divideOTotalPelosDiasDeTrabalhoDaJanela() {
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, valores("600.00", "400.00"),
-            CalendarioDeTrabalho.SEGUNDA_A_SABADO);
+    void divideCadaCategoriaPelosDiasEmQueHouveGasto() {
+        List<Lancamento> gastos = new ArrayList<>();
+        for (int dia = 1; dia <= 30; dia += 2) {
+            gastos.add(gasto(COMBUSTIVEL, "40.00", SEGUNDA.minusDays(dia)));
+        }
 
-        assertThat(custo.total()).isEqualByComparingTo("1000.00");
-        assertThat(custo.diasDeTrabalho()).isEqualTo(25);
-        assertThat(custo.porDia()).isEqualByComparingTo("40.00");
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(COMBUSTIVEL), gastos);
+
+        MediaDaCategoria combustivel = custo.categorias().get(0);
+        assertThat(combustivel.total()).isEqualByComparingTo("600.00");
+        assertThat(combustivel.diasComGasto()).isEqualTo(15);
+        assertThat(combustivel.porDia()).isEqualByComparingTo("40.00");
+    }
+
+    /** Dois gastos no mesmo dia são um dia com gasto, e não dois. */
+    @Test
+    void doisGastosNoMesmoDiaContamUmDia() {
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(ALIMENTACAO), List.of(
+            gasto(ALIMENTACAO, "20.00", SEGUNDA.minusDays(1)),
+            gasto(ALIMENTACAO, "30.00", SEGUNDA.minusDays(1)),
+            gasto(ALIMENTACAO, "40.00", SEGUNDA.minusDays(4))
+        ));
+
+        assertThat(custo.categorias().get(0).diasComGasto()).isEqualTo(2);
+        assertThat(custo.porDia()).isEqualByComparingTo("45.00");
+    }
+
+    /** Cada categoria tem os seus dias; o custo do dia é a soma das médias. */
+    @Test
+    void oCustoDoDiaEASomaDasMediasDasCategorias() {
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(ALIMENTACAO, COMBUSTIVEL), List.of(
+            gasto(ALIMENTACAO, "25.00", SEGUNDA.minusDays(1)),
+            gasto(ALIMENTACAO, "35.00", SEGUNDA.minusDays(2)),
+            gasto(COMBUSTIVEL, "100.00", SEGUNDA.minusDays(3))
+        ));
+
+        assertThat(custo.categorias()).extracting(MediaDaCategoria::categoriaId)
+            .as("da maior média para a menor")
+            .containsExactly(COMBUSTIVEL, ALIMENTACAO);
+        assertThat(custo.total()).isEqualByComparingTo("160.00");
+        assertThat(custo.porDia()).isEqualByComparingTo("130.00");
     }
 
     @Test
     void arredondaParaCimaNoCentavo() {
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, valores("1000.01"), CalendarioDeTrabalho.SEGUNDA_A_SABADO);
-
-        assertThat(custo.porDia()).isEqualByComparingTo("40.01");
-    }
-
-    /** 07/09/2026, Independência, é segunda: um dia a menos para dividir. */
-    @Test
-    void oFeriadoDaJanelaTiraUmDia() {
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, valores("960.00"),
-            CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of()));
-
-        assertThat(custo.diasDeTrabalho()).isEqualTo(24);
-        assertThat(custo.porDia()).isEqualByComparingTo("40.00");
-    }
-
-    @Test
-    void semGastoOPorDiaEZero() {
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, List.of(), CalendarioDeTrabalho.SEGUNDA_A_SABADO);
-
-        assertThat(custo.total()).isEqualByComparingTo("0");
-        assertThat(custo.porDia()).isEqualByComparingTo("0");
-    }
-
-    /** Férias cobrindo a janela inteira: não há por quantos dias dividir, e o por dia não divide por zero. */
-    @Test
-    void semDiaDeTrabalhoNaJanelaOPorDiaEZero() {
-        CalendarioDeTrabalho deFerias = CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of(
-            new PeriodoSemTrabalho(1L, LocalDate.of(2026, 8, 20), LocalDate.of(2026, 9, 30), "Férias")
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(ALIMENTACAO), List.of(
+            gasto(ALIMENTACAO, "10.00", SEGUNDA.minusDays(1)),
+            gasto(ALIMENTACAO, "10.00", SEGUNDA.minusDays(2)),
+            gasto(ALIMENTACAO, "10.01", SEGUNDA.minusDays(3))
         ));
 
-        CustoDiario custo = CustoDiario.calcular(SEGUNDA, valores("500.00"), deFerias);
+        assertThat(custo.porDia()).isEqualByComparingTo("10.01");
+    }
 
-        assertThat(custo.diasDeTrabalho()).isZero();
+    @Test
+    void categoriaSemGastoNaJanelaFicaComZero() {
+        CustoDiario custo = CustoDiario.calcular(SEGUNDA, Set.of(ALIMENTACAO), List.of());
+
+        MediaDaCategoria alimentacao = custo.categorias().get(0);
+        assertThat(alimentacao.diasComGasto()).isZero();
+        assertThat(alimentacao.porDia()).isEqualByComparingTo("0");
         assertThat(custo.porDia()).isEqualByComparingTo("0");
     }
 
-    private static List<BigDecimal> valores(String... valores) {
-        return java.util.Arrays.stream(valores).map(BigDecimal::new).toList();
+    private static Lancamento gasto(Long categoria, String valor, LocalDate data) {
+        return new Lancamento(null, new BigDecimal(valor), data, 1L, categoria);
     }
 }

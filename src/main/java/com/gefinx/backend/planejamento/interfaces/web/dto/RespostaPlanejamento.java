@@ -18,8 +18,8 @@ import java.util.List;
  * {@code porDia} de um item é nulo quando ele não tem dias por onde dividir — coberto,
  * atrasado, ou sem dia de trabalho até o prazo.
  *
- * <p>A meta acompanha cada lançamento, e inclui o {@code custoDiario.porDia}, a média dos 30 dias
- * até ontem nas categorias escolhidas. {@code custoDiario} é nulo quando nenhuma foi escolhida.
+ * <p>A meta acompanha cada lançamento, e inclui o {@code custoDiario.porDia}: a soma das médias das
+ * categorias escolhidas nos 30 dias até ontem, cada uma pelos dias em que houve gasto nela. {@code custoDiario} é nulo quando nenhuma foi escolhida.
  * {@code receitasDeHoje} é a soma das receitas do dia, sem descontar despesas.
  *
  * <p>{@code folgaDeHoje} é o motivo de hoje não contar — "Domingo", o nome do feriado, a
@@ -37,13 +37,17 @@ public record RespostaPlanejamento(
     List<Item> itens
 ) {
 
+    /** {@code categorias} vem da maior média para a menor, cada uma pelos dias em que houve gasto nela. */
     public record CustoDiario(
         LocalDate inicio,
         LocalDate fim,
         BigDecimal total,
-        int diasDeTrabalho,
-        BigDecimal porDia
+        BigDecimal porDia,
+        List<MediaDaCategoria> categorias
     ) {
+    }
+
+    public record MediaDaCategoria(Long categoriaId, BigDecimal total, int diasComGasto, BigDecimal porDia) {
     }
 
     public record Item(
@@ -74,8 +78,11 @@ public record RespostaPlanejamento(
                 plano.custoDiario().inicio(),
                 plano.custoDiario().fim(),
                 plano.custoDiario().total(),
-                plano.custoDiario().diasDeTrabalho(),
-                plano.custoDiario().porDia()
+                plano.custoDiario().porDia(),
+                plano.custoDiario().categorias().stream()
+                    .map(media -> new MediaDaCategoria(
+                        media.categoriaId(), media.total(), media.diasComGasto(), media.porDia()))
+                    .toList()
             ),
             plano.prazoDecisivo(),
             plano.folgaDeHoje(),
