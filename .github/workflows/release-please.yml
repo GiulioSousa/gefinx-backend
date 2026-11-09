@@ -1,6 +1,10 @@
 # A cada push na main, o release-please lê os Conventional Commits desde a
 # última versão e abre (ou atualiza) um PR de release com a próxima versão e o
-# CHANGELOG. O merge desse PR cria a tag vX.Y.Z e a Release no GitHub.
+# CHANGELOG. Em seguida, a seção "Versões" do README é regenerada dentro do
+# mesmo PR. O merge desse PR cria a tag vX.Y.Z e a Release no GitHub.
+#
+# Política: o PR de release só é mesclado quando há mudança de maior impacto
+# (estrutura do código ou do banco). Até lá, ele apenas acumula as alterações.
 name: release-please
 
 on:
@@ -16,7 +20,24 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      - id: rp
+        uses: googleapis/release-please-action@v4
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - name: Baixa a branch do PR de release
+        if: ${{ steps.rp.outputs.pr }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ fromJSON(steps.rp.outputs.pr).headBranchName }}
+
+      - name: Atualiza a seção "Versões" do README
+        if: ${{ steps.rp.outputs.pr }}
+        run: |
+          node .github/scripts/versoes-readme.mjs
+          if git diff --quiet README.md; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "docs: atualiza as versoes no readme"
+          git push
