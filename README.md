@@ -27,6 +27,12 @@ Versão atual: **0.2.0**. Histórico completo no [CHANGELOG](CHANGELOG.md).
 
 ### 0.2.0 — 09/11/2026
 
+Custo diário na meta, e uma meta que acompanha cada lançamento. A meta diária passa a somar o
+gasto do dia a dia: a média dos últimos 30 dias de cada categoria escolhida, como alimentação e
+combustível, dividida pelos dias em que houve gasto nela. Ela deixa de ficar parada durante o dia e
+é recalculada a cada transação, e o plano passa a informar as receitas de hoje no lugar do ganho do
+dia. Traz a migration `V18` e muda a resposta de `/api/planejamento`: requer o frontend 0.2.0.
+
 **⚠ Mudanças incompatíveis**
 
 - **planejamento:** GET /api/planejamento deixa de ter saldoDeOntem, ganhoDeHoje e restanteHoje, e ganha receitasDeHoje e custoDiario.
