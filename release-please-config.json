@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "0963efddd98d4d1d809ed7f6823ba5a1c86a77d5",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "pull-request-title-pattern": "chore: lanca a versao ${version}",
+  "pull-request-header": "Release preparada pelo release-please. Faça o merge deste PR para publicar a versão.",
+  "changelog-sections": [
+    { "type": "feat", "section": "Funcionalidades" },
+    { "type": "fix", "section": "Correções" },
+    { "type": "perf", "section": "Desempenho" },
+    { "type": "revert", "section": "Reversões" },
+    { "type": "refactor", "section": "Refatorações", "hidden": true },
+    { "type": "docs", "section": "Documentação", "hidden": true },
+    { "type": "test", "section": "Testes", "hidden": true },
+    { "type": "build", "section": "Build", "hidden": true },
+    { "type": "ci", "section": "Integração contínua", "hidden": true },
+    { "type": "style", "section": "Estilo", "hidden": true },
+    { "type": "chore", "section": "Manutenção", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "release-type": "maven",
+      "package-name": "gefinx-backend",
+      "skip-snapshot": true,
+      "changelog-path": "CHANGELOG.md"
+    }
+  }
+}
