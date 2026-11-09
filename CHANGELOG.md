@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.0](https://github.com/GiulioSousa/gefinx-backend/compare/v0.1.0...v0.2.0) (2026-11-09)
+
+
+### ⚠ BREAKING CHANGES
+
+* **planejamento:** GET /api/planejamento deixa de ter saldoDeOntem, ganhoDeHoje e restanteHoje, e ganha receitasDeHoje e custoDiario.
+
+### Funcionalidades
+
+* **db:** cria a tabela das categorias do custo diario ([87d14e1](https://github.com/GiulioSousa/gefinx-backend/commit/87d14e177be9de197bd20294bd2ef66ed7173f37))
+* **planejamento:** calcula a media do custo diario pelos dias com gasto ([75e30b1](https://github.com/GiulioSousa/gefinx-backend/commit/75e30b192873e12403a239620a5590381d5b140d))
+* **planejamento:** soma o custo diario a meta e a faz acompanhar cada lancamento ([d347f25](https://github.com/GiulioSousa/gefinx-backend/commit/d347f2580f5c7d3fcc602faf9f1edd7bbaf4bae5))
+
 ## [0.1.0](https://github.com/GiulioSousa/gefinx-backend/releases/tag/v0.1.0) (2026-11-09)
 
 Primeira versão marcada do GeFinX. Reúne a base construída até aqui: API REST multiusuário em
