@@ -21,8 +21,14 @@ public interface FonteDeSaldo {
 
     List<ContaDoPlanejamento> listarContas(Long usuarioId);
 
-    /** As despesas com data em {@code dia} — de onde saem os pagamentos feitos hoje. */
-    List<DespesaLancada> despesasLancadasEm(Long usuarioId, LocalDate dia);
+    /** As categorias de despesa do usuário — as que podem entrar no custo diário. */
+    List<CategoriaDoPlanejamento> listarCategoriasDeDespesa(Long usuarioId);
+
+    /** As despesas com data de {@code inicio} a {@code fim}, inclusive, de todas as contas. */
+    List<Lancamento> despesasLancadas(Long usuarioId, LocalDate inicio, LocalDate fim);
+
+    /** As receitas com data de {@code inicio} a {@code fim}, inclusive, de todas as contas. */
+    List<Lancamento> receitasLancadas(Long usuarioId, LocalDate inicio, LocalDate fim);
 
     /** As transações informadas, com os nomes de conta e categoria. Id que não é do usuário fica de fora. */
     List<PagamentoLancado> pagamentos(Long usuarioId, Collection<Long> transacaoIds);

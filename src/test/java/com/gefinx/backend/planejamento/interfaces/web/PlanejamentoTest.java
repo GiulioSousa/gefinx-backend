@@ -13,6 +13,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -88,13 +90,23 @@ class PlanejamentoTest {
     @Test
     void semContasDeForaOSaldoEOConsolidado() {
         receber(banco, "40.00", hoje);
+        receber(especie, "25.00", hoje);
 
         JsonNode plano = obter("/api/planejamento");
 
         assertThat(plano.get("hoje").asString()).isEqualTo(hoje.toString());
-        assertThat(plano.get("saldoDeOntem").decimalValue()).isEqualByComparingTo("1300.00");
-        assertThat(plano.get("saldoAtual").decimalValue()).isEqualByComparingTo("1340.00");
-        assertThat(plano.get("ganhoDeHoje").decimalValue()).isEqualByComparingTo("40.00");
+        assertThat(plano.get("saldoAtual").decimalValue()).isEqualByComparingTo("1365.00");
+        assertThat(plano.get("receitasDeHoje").decimalValue()).isEqualByComparingTo("65.00");
+        assertThat(plano.get("custoDiario").isNull()).isTrue();
+    }
+
+    @Test
+    void aReceitaDaContaDeForaNaoEntraNasDeHoje() {
+        enviar("PUT", "/api/planejamento/contas", token, "{\"contasDeFora\":[" + especie + "]}");
+        receber(banco, "40.00", hoje);
+        receber(especie, "25.00", hoje);
+
+        assertThat(obter("/api/planejamento").get("receitasDeHoje").decimalValue()).isEqualByComparingTo("40.00");
     }
 
     @Test
@@ -218,8 +230,8 @@ class PlanejamentoTest {
         JsonNode plano = obter("/api/planejamento");
         assertThat(plano.get("itens")).isEmpty();
         assertThat(plano.get("saldoAtual").decimalValue()).isEqualByComparingTo("1000.00");
-        assertThat(plano.get("ganhoDeHoje").decimalValue())
-            .as("pagar hoje uma despesa planejada não é perder dinheiro hoje")
+        assertThat(plano.get("metaDiaria").decimalValue())
+            .as("paga, a despesa sai e o saldo cai junto: não sobra o que ganhar")
             .isEqualByComparingTo("0");
     }
 
@@ -638,6 +650,121 @@ class PlanejamentoTest {
             "{\"descricao\":\"IPVA\",\"valor\":100.00,\"prazo\":\"" + hoje + "\",\"recorrencia\":\"ANUAL\"}");
 
         assertThat(resposta.statusCode()).isEqualTo(REQUISICAO_INVALIDA);
+    }
+
+    @Test
+    void asCategoriasOferecidasSaoAsDeDespesaEAEscolhaFicaGuardada() {
+        long alimentacao = criarCategoriaDeDespesa("Alimentação");
+
+        JsonNode categorias = enviarJson("PUT", "/api/planejamento/categorias",
+            "{\"categoriasDoCustoDiario\":[" + alimentacao + "]}");
+
+        List<Long> ids = new java.util.ArrayList<>();
+        categorias.forEach(categoria -> ids.add(categoria.get("id").asLong()));
+        assertThat(ids).containsExactlyInAnyOrder(categoriaDespesa, alimentacao);
+        assertThat(entraNoCusto(obter("/api/planejamento/categorias"), alimentacao)).isTrue();
+        assertThat(entraNoCusto(obter("/api/planejamento/categorias"), categoriaDespesa)).isFalse();
+    }
+
+    @Test
+    void naoMarcaCategoriaDeReceitaNemAlheia() {
+        String outroToken = criarUsuarioEObterToken();
+        long alheia = extrairId(enviar("POST", "/api/categorias", outroToken,
+            "{\"nome\":\"Alimentação\",\"tipo\":\"DESPESA\"}").body());
+
+        assertThat(enviar("PUT", "/api/planejamento/categorias", token,
+            "{\"categoriasDoCustoDiario\":[" + categoriaReceita + "]}").statusCode()).isEqualTo(NAO_ENCONTRADO);
+        assertThat(enviar("PUT", "/api/planejamento/categorias", token,
+            "{\"categoriasDoCustoDiario\":[" + alheia + "]}").statusCode()).isEqualTo(NAO_ENCONTRADO);
+    }
+
+    /** A marca não pode impedir a exclusão da categoria: o CASCADE da V18 a leva junto. */
+    @Test
+    void excluirACategoriaDoCustoLevaAMarcaJunto() {
+        long alimentacao = criarCategoriaDeDespesa("Alimentação");
+        enviar("PUT", "/api/planejamento/categorias", token, "{\"categoriasDoCustoDiario\":[" + alimentacao + "]}");
+
+        assertThat(enviar("DELETE", "/api/categorias/" + alimentacao, token, null).statusCode())
+            .isEqualTo(SEM_CONTEUDO);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM categorias_do_custo_diario WHERE categoria_id = ?", Long.class, alimentacao
+        )).isZero();
+    }
+
+    /** 260 nos 30 dias até ontem, divididos pelos dias de trabalho da janela, com os feriados nacionais. */
+    @Test
+    void oCustoDiarioEAMediaDosTrintaDiasEEntraNaMeta() {
+        long alimentacao = criarCategoriaDeDespesa("Alimentação");
+        // Fora da janela, e por isso fora da média; o saldo nunca negativo pede o dinheiro antes.
+        receber(banco, "999.00", hoje.minusDays(40));
+        gastar(banco, alimentacao, "999.00", hoje.minusDays(31));
+        gastar(banco, alimentacao, "200.00", hoje.minusDays(1));
+        gastar(banco, alimentacao, "60.00", hoje.minusDays(5));
+        gastar(banco, categoriaDespesa, "80.00", hoje.minusDays(1));
+        enviar("PUT", "/api/planejamento/categorias", token, "{\"categoriasDoCustoDiario\":[" + alimentacao + "]}");
+
+        JsonNode plano = obter("/api/planejamento");
+        JsonNode custo = plano.get("custoDiario");
+
+        int dias = CalendarioDeTrabalho.comFeriadosNacionais(Set.of(), List.of()).contarDias(hoje.minusDays(30), hoje);
+        BigDecimal porDia = new BigDecimal("260.00").divide(BigDecimal.valueOf(dias), 2, RoundingMode.CEILING);
+        assertThat(custo.get("total").decimalValue()).isEqualByComparingTo("260.00");
+        assertThat(custo.get("diasDeTrabalho").asInt()).isEqualTo(dias);
+        assertThat(custo.get("porDia").decimalValue()).isEqualByComparingTo(porDia);
+        assertThat(custo.get("inicio").asString()).isEqualTo(hoje.minusDays(30).toString());
+        assertThat(custo.get("fim").asString()).isEqualTo(hoje.minusDays(1).toString());
+        assertThat(plano.get("metaDiaria").decimalValue())
+            .as("sem despesa planejada, a meta é o custo diário")
+            .isEqualByComparingTo(porDia);
+    }
+
+    /**
+     * O gasto de hoje no custo diário já está na meta pela média, e não a sobe de novo; um gasto
+     * de outra categoria sobe. Os dois tiram o mesmo valor do saldo.
+     */
+    @Test
+    void aMetaSobeComGastoForaDoCustoDiarioENaoComOGastoDele() {
+        long alimentacao = criarCategoriaDeDespesa("Alimentação");
+        enviar("PUT", "/api/planejamento/categorias", token, "{\"categoriasDoCustoDiario\":[" + alimentacao + "]}");
+        criarDespesa("Cartão", "2000.00", hoje.plusDays(60));
+        BigDecimal antes = obter("/api/planejamento").get("metaDiaria").decimalValue();
+
+        gastar(banco, alimentacao, "50.00", hoje);
+        JsonNode depoisDoCusto = obter("/api/planejamento");
+        assertThat(depoisDoCusto.get("metaDiaria").decimalValue()).isEqualByComparingTo(antes);
+        assertThat(depoisDoCusto.get("saldoAtual").decimalValue()).isEqualByComparingTo("1250.00");
+
+        gastar(banco, categoriaDespesa, "50.00", hoje);
+        assertThat(obter("/api/planejamento").get("metaDiaria").decimalValue()).isGreaterThan(antes);
+    }
+
+    private long criarCategoriaDeDespesa(String nome) {
+        HttpResponse<String> resposta = enviar("POST", "/api/categorias", token,
+            "{\"nome\":\"" + nome + "\",\"tipo\":\"DESPESA\"}");
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(CRIADO);
+        return extrairId(resposta.body());
+    }
+
+    private void gastar(long contaId, long categoriaId, String valor, LocalDate data) {
+        HttpResponse<String> resposta = enviar("POST", "/api/transacoes", token,
+            "{\"descricao\":\"Gasto\",\"valor\":" + valor + ",\"tipo\":\"DESPESA\",\"categoriaId\":"
+                + categoriaId + ",\"contaId\":" + contaId + ",\"dataTransacao\":\"" + data + "\"}");
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(CRIADO);
+    }
+
+    private JsonNode enviarJson(String metodo, String caminho, String corpo) {
+        HttpResponse<String> resposta = enviar(metodo, caminho, token, corpo);
+        assertThat(resposta.statusCode()).as(resposta.body()).isEqualTo(OK);
+        return objectMapper.readTree(resposta.body());
+    }
+
+    private boolean entraNoCusto(JsonNode categorias, long categoriaId) {
+        for (JsonNode categoria : categorias) {
+            if (categoria.get("id").asLong() == categoriaId) {
+                return categoria.get("entraNoCustoDiario").asBoolean();
+            }
+        }
+        throw new AssertionError("categoria " + categoriaId + " fora da lista: " + categorias);
     }
 
     private long criarParcelada(String descricao, LocalDate prazo, String recorrencia, int parcela, int total) {

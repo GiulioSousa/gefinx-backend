@@ -2,7 +2,9 @@ package com.gefinx.backend.planejamento.interfaces.web;
 
 import com.gefinx.backend.compartilhado.seguranca.UsuarioAutenticado;
 import com.gefinx.backend.planejamento.aplicacao.PlanejamentoService;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoCategoriasDoCustoDiario;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RequisicaoContasDeFora;
+import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaCategoriaDoPlanejamento;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaContaDoPlanejamento;
 import com.gefinx.backend.planejamento.interfaces.web.dto.RespostaPlanejamento;
 import jakarta.validation.Valid;
@@ -41,6 +43,29 @@ public class PlanejamentoController {
         Long usuarioId = UsuarioAutenticado.obterId();
         planejamentoService.definirContasDeFora(usuarioId, requisicao.contasDeFora());
         return listarContas(usuarioId);
+    }
+
+    /** As categorias de despesa, cada uma dizendo se entra no custo diário — a lista que a tela mostra para marcar. */
+    @GetMapping("/categorias")
+    public List<RespostaCategoriaDoPlanejamento> categorias() {
+        return listarCategorias(UsuarioAutenticado.obterId());
+    }
+
+    @PutMapping("/categorias")
+    public List<RespostaCategoriaDoPlanejamento> definirCategoriasDoCustoDiario(
+        @Valid @RequestBody RequisicaoCategoriasDoCustoDiario requisicao
+    ) {
+        Long usuarioId = UsuarioAutenticado.obterId();
+        planejamentoService.definirCategoriasDoCustoDiario(usuarioId, requisicao.categoriasDoCustoDiario());
+        return listarCategorias(usuarioId);
+    }
+
+    private List<RespostaCategoriaDoPlanejamento> listarCategorias(Long usuarioId) {
+        Set<Long> doCusto = planejamentoService.listarCategoriasDoCustoDiario(usuarioId);
+        return planejamentoService.listarCategoriasDeDespesa(usuarioId).stream()
+            .map(categoria -> new RespostaCategoriaDoPlanejamento(
+                categoria.id(), categoria.nome(), doCusto.contains(categoria.id())))
+            .toList();
     }
 
     private List<RespostaContaDoPlanejamento> listarContas(Long usuarioId) {

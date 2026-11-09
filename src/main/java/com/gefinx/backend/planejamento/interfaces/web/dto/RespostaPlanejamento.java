@@ -18,21 +18,33 @@ import java.util.List;
  * {@code porDia} de um item é nulo quando ele não tem dias por onde dividir — coberto,
  * atrasado, ou sem dia de trabalho até o prazo.
  *
+ * <p>A meta acompanha cada lançamento, e inclui o {@code custoDiario.porDia}, a média dos 30 dias
+ * até ontem nas categorias escolhidas. {@code custoDiario} é nulo quando nenhuma foi escolhida.
+ * {@code receitasDeHoje} é a soma das receitas do dia, sem descontar despesas.
+ *
  * <p>{@code folgaDeHoje} é o motivo de hoje não contar — "Domingo", o nome do feriado, a
  * descrição do período —, e nulo quando hoje é dia de trabalho.
  */
 public record RespostaPlanejamento(
     LocalDate hoje,
-    BigDecimal saldoDeOntem,
     BigDecimal saldoAtual,
-    BigDecimal ganhoDeHoje,
+    BigDecimal receitasDeHoje,
     BigDecimal metaDiaria,
     BigDecimal pendente,
-    BigDecimal restanteHoje,
+    CustoDiario custoDiario,
     LocalDate prazoDecisivo,
     String folgaDeHoje,
     List<Item> itens
 ) {
+
+    public record CustoDiario(
+        LocalDate inicio,
+        LocalDate fim,
+        BigDecimal total,
+        int diasDeTrabalho,
+        BigDecimal porDia
+    ) {
+    }
 
     public record Item(
         Long id,
@@ -54,12 +66,17 @@ public record RespostaPlanejamento(
     public static RespostaPlanejamento apartirDoPlano(PlanoDePagamento plano) {
         return new RespostaPlanejamento(
             plano.hoje(),
-            plano.saldoDeOntem(),
             plano.saldoAtual(),
-            plano.ganhoDeHoje(),
+            plano.receitasDeHoje(),
             plano.metaDiaria(),
             plano.pendente(),
-            plano.restanteHoje(),
+            plano.custoDiario() == null ? null : new CustoDiario(
+                plano.custoDiario().inicio(),
+                plano.custoDiario().fim(),
+                plano.custoDiario().total(),
+                plano.custoDiario().diasDeTrabalho(),
+                plano.custoDiario().porDia()
+            ),
             plano.prazoDecisivo(),
             plano.folgaDeHoje(),
             plano.itens().stream()

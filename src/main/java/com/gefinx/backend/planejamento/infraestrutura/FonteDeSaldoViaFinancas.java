@@ -11,9 +11,10 @@ import com.gefinx.backend.financas.dominio.Pagina;
 import com.gefinx.backend.financas.dominio.Periodo;
 import com.gefinx.backend.financas.dominio.TipoTransacao;
 import com.gefinx.backend.financas.dominio.Transacao;
+import com.gefinx.backend.planejamento.dominio.CategoriaDoPlanejamento;
 import com.gefinx.backend.planejamento.dominio.ContaDoPlanejamento;
-import com.gefinx.backend.planejamento.dominio.DespesaLancada;
 import com.gefinx.backend.planejamento.dominio.FonteDeSaldo;
+import com.gefinx.backend.planejamento.dominio.Lancamento;
 import com.gefinx.backend.planejamento.dominio.PagamentoLancado;
 import org.springframework.stereotype.Component;
 
@@ -78,24 +79,45 @@ public class FonteDeSaldoViaFinancas implements FonteDeSaldo {
             .toList();
     }
 
-    /**
-     * Pela mesma listagem paginada da tela de transações, página a página até o fim. As
-     * despesas de um dia são poucas, e reaproveitar a listagem poupa finanças de ganhar uma
-     * consulta só para o planejamento.
-     */
     @Override
-    public List<DespesaLancada> despesasLancadasEm(Long usuarioId, LocalDate dia) {
-        FiltroDeTransacoes doDia = new FiltroDeTransacoes(dia, dia, TipoTransacao.DESPESA, null, null);
-        List<DespesaLancada> despesas = new ArrayList<>();
+    public List<CategoriaDoPlanejamento> listarCategoriasDeDespesa(Long usuarioId) {
+        return categoriaService.listar(usuarioId).stream()
+            .filter(categoria -> categoria.getTipo() == TipoTransacao.DESPESA)
+            .map(categoria -> new CategoriaDoPlanejamento(categoria.getId(), categoria.getNome()))
+            .toList();
+    }
+
+    @Override
+    public List<Lancamento> despesasLancadas(Long usuarioId, LocalDate inicio, LocalDate fim) {
+        return lancamentos(usuarioId, TipoTransacao.DESPESA, inicio, fim);
+    }
+
+    @Override
+    public List<Lancamento> receitasLancadas(Long usuarioId, LocalDate inicio, LocalDate fim) {
+        return lancamentos(usuarioId, TipoTransacao.RECEITA, inicio, fim);
+    }
+
+    /**
+     * Pela mesma listagem paginada da tela de transações, página a página até o fim. Trinta
+     * dias de lançamentos de uso pessoal são poucas páginas, e reaproveitar a listagem poupa
+     * finanças de ganhar uma consulta só para o planejamento.
+     */
+    private List<Lancamento> lancamentos(Long usuarioId, TipoTransacao tipo, LocalDate inicio, LocalDate fim) {
+        FiltroDeTransacoes doPeriodo = new FiltroDeTransacoes(inicio, fim, tipo, null, null);
+        List<Lancamento> lancamentos = new ArrayList<>();
         Pagina<Transacao> pagina;
         int numero = 0;
         do {
-            pagina = transacaoService.listar(usuarioId, doDia, numero++, TAMANHO_DA_PAGINA);
-            pagina.itens().forEach(transacao -> despesas.add(
-                new DespesaLancada(transacao.getId(), transacao.getValor(), transacao.getContaId())
-            ));
+            pagina = transacaoService.listar(usuarioId, doPeriodo, numero++, TAMANHO_DA_PAGINA);
+            pagina.itens().forEach(transacao -> lancamentos.add(new Lancamento(
+                transacao.getId(),
+                transacao.getValor(),
+                transacao.getDataTransacao(),
+                transacao.getContaId(),
+                transacao.getCategoriaId()
+            )));
         } while (numero < pagina.totalPaginas());
-        return despesas;
+        return lancamentos;
     }
 
     /** Os nomes saem das listas do usuário, como na listagem de transações: uma consulta por tipo, e não uma por linha. */
