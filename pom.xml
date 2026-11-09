@@ -124,6 +124,9 @@
 	</dependencies>
 
 	<build>
+		<!-- Nome fixo, sem a versão: o release-please muda a versão a cada lançamento, e os
+		     roteiros de deploy apontam para target/gefinx-backend.jar. -->
+		<finalName>gefinx-backend</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
