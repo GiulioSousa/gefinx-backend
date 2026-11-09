@@ -23,7 +23,19 @@ automaticamente a cada release.
 
 <!-- versoes:inicio -->
 
-Versão atual: **0.1.0**. Histórico completo no [CHANGELOG](CHANGELOG.md).
+Versão atual: **0.2.0**. Histórico completo no [CHANGELOG](CHANGELOG.md).
+
+### 0.2.0 — 09/11/2026
+
+**⚠ Mudanças incompatíveis**
+
+- **planejamento:** GET /api/planejamento deixa de ter saldoDeOntem, ganhoDeHoje e restanteHoje, e ganha receitasDeHoje e custoDiario.
+
+**Funcionalidades**
+
+- **db:** cria a tabela das categorias do custo diario
+- **planejamento:** calcula a media do custo diario pelos dias com gasto
+- **planejamento:** soma o custo diario a meta e a faz acompanhar cada lancamento
 
 ### 0.1.0 — 09/11/2026
 
