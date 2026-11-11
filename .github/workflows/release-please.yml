@@ -28,7 +28,7 @@ jobs:
 
       - name: Baixa a branch do PR de release
         if: ${{ steps.rp.outputs.pr }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ fromJSON(steps.rp.outputs.pr).headBranchName }}
 
