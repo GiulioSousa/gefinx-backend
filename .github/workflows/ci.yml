@@ -15,6 +15,24 @@ permissions:
   contents: read
 
 jobs:
+  # As mensagens de commit alimentam o CHANGELOG e a seção "Versões" do README pelo
+  # release-please: fora da convenção, um commit sumiria deles sem aviso.
+  mensagens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # O título do PR vem do autor do PR: entra por variável de ambiente, e não interpolado no
+      # comando, para não virar código no runner.
+      - name: Confere as mensagens de commit
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          TOPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          TITULO: ${{ github.event.pull_request.title }}
+        run: bash .github/scripts/conferir-commits.sh "$BASE" "$TOPO" "$TITULO"
+
   testes:
     runs-on: ubuntu-latest
 

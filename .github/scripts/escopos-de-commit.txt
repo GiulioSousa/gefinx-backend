@@ -1,0 +1,11 @@
+# Escopos aceitos nas mensagens de commit do backend: os bounded contexts, e não as camadas.
+# Um contexto novo entra aqui no mesmo commit que o cria. Ver conferir-commits.sh.
+auth
+usuarios
+financas
+categorias
+transacoes
+saldo
+contas
+planejamento
+db
