@@ -1,0 +1,32 @@
+# Dependabot: alertas de vulnerabilidade e PRs de atualização das dependências. Fecha a
+# limitação "sem varredura de CVE no backend" (Etapa 15) sem chave de API externa. Cada PR passa
+# pelo CI — build e a suíte inteira contra o PostgreSQL 16 — antes do merge, que é do dono.
+#
+# As mensagens levam o prefixo do Conventional Commits: sem ele, o "Bump x from 1 to 2" do
+# Dependabot seria recusado pela checagem de mensagens do CI. "build" e "ci" não geram versão
+# no release-please; uma atualização só chega ao servidor no próximo deploy.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/Sao_Paulo
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+    # Correções e versões menores num PR só, para a primeira leva não virar uma fila de PRs.
+    # Versão maior vem em PR próprio: é a que pode quebrar, e merece ser olhada sozinha.
+    groups:
+      menores-e-correcoes:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      timezone: America/Sao_Paulo
+    commit-message:
+      prefix: ci
