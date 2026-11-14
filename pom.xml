@@ -9,7 +9,7 @@
 	</parent>
 	<groupId>com.gefinx</groupId>
 	<artifactId>gefinx-backend</artifactId>
-	<version>0.2.0</version>
+	<version>0.3.0</version>
 	<name>gefinx-backend</name>
 	<description>GeFinX - Backend</description>
 	<url/>
