@@ -23,7 +23,17 @@ automaticamente a cada release.
 
 <!-- versoes:inicio -->
 
-Versão atual: **0.2.0**. Histórico completo no [CHANGELOG](CHANGELOG.md).
+Versão atual: **0.3.0**. Histórico completo no [CHANGELOG](CHANGELOG.md).
+
+### 0.3.0 — 14/11/2026
+
+**⚠ Mudanças incompatíveis**
+
+- **planejamento:** a API de despesas planejadas troca o campo etiquetaId por etiquetaIds, uma lista de ate tres ids, na requisicao e nas respostas da despesa, do plano e do historico de pagas.
+
+**Funcionalidades**
+
+- **planejamento:** permite ate tres etiquetas por despesa planejada
 
 ### 0.2.0 — 09/11/2026
 
