@@ -1,9 +1,11 @@
 package com.gefinx.backend.planejamento.dominio;
 
+import com.gefinx.backend.planejamento.dominio.excecoes.EtiquetaRecusadaException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -213,33 +215,60 @@ class DespesaPlanejadaTest {
         assertThat(encerrada.temProxima()).isFalse();
     }
 
-    /** A etiqueta passa adiante como a descrição, e nenhum dos caminhos que encerram a série a perde. */
+    /** As etiquetas passam adiante como a descrição, e nenhum dos caminhos que encerram a série as perde. */
     @Test
-    void aEtiquetaSegueNaSerie() {
-        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, 1, 3, 4L);
+    void asEtiquetasSeguemNaSerie() {
+        DespesaPlanejada atual = DespesaPlanejada.nova(
+            "Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, 1, 3, List.of(4L, 7L)
+        );
 
-        assertThat(atual.proxima().getEtiquetaId()).isEqualTo(4L);
-        assertThat(atual.semRecorrencia().getEtiquetaId()).isEqualTo(4L);
-        assertThat(atual.comoUltimaParcela().getEtiquetaId()).isEqualTo(4L);
-        assertThat(atual.pagaCom(99L).semPagamento().getEtiquetaId()).isEqualTo(4L);
+        assertThat(atual.proxima().getEtiquetaIds()).containsExactly(4L, 7L);
+        assertThat(atual.semRecorrencia().getEtiquetaIds()).containsExactly(4L, 7L);
+        assertThat(atual.comoUltimaParcela().getEtiquetaIds()).containsExactly(4L, 7L);
+        assertThat(atual.pagaCom(99L).semPagamento().getEtiquetaIds()).containsExactly(4L, 7L);
     }
 
     @Test
-    void editarSemInformarAEtiquetaMantemADela() {
-        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, null, null, null, 4L);
+    void editarSemInformarAsEtiquetasMantemAsDela() {
+        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, null, null, null, List.of(4L));
 
-        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null).getEtiquetaId()).isEqualTo(4L);
-        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null, null, null, null).getEtiquetaId()).isNull();
+        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null).getEtiquetaIds()).containsExactly(4L);
+        assertThat(atual.editada("Fone novo", VALOR, LocalDate.of(2027, 1, 10), null, null, null, null).getEtiquetaIds()).isEmpty();
     }
 
-    /** Trocar a etiqueta da próxima é editá-la: desfazer o pagamento da anterior não a descarta. */
+    /** Um conjunto: sem repetição, e na mesma ordem venha como vier — a comparação da próxima depende disso. */
     @Test
-    void aProximaComOutraEtiquetaNaoEstaComoNasceu() {
-        DespesaPlanejada atual = DespesaPlanejada.nova("Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, null, null, 4L);
+    void asEtiquetasVemSemRepeticaoEEmOrdem() {
+        DespesaPlanejada despesa = DespesaPlanejada.nova(
+            "Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, null, null, null, List.of(9L, 4L, 9L)
+        );
+
+        assertThat(despesa.getEtiquetaIds()).containsExactly(4L, 9L);
+    }
+
+    @Test
+    void ateTresEtiquetasPorDespesa() {
+        LocalDate prazo = LocalDate.of(2027, 1, 10);
+        DespesaPlanejada tres = DespesaPlanejada.nova("Fone", VALOR, prazo, USUARIO, null, null, null, List.of(1L, 2L, 3L, 3L));
+
+        assertThat(tres.getEtiquetaIds()).hasSize(3);
+        assertThatThrownBy(() -> DespesaPlanejada.nova("Fone", VALOR, prazo, USUARIO, null, null, null, List.of(1L, 2L, 3L, 4L)))
+            .isInstanceOf(EtiquetaRecusadaException.class)
+            .hasMessage("Escolha no máximo 3 etiquetas por despesa");
+        assertThatThrownBy(() -> tres.editada("Fone", VALOR, prazo, null, null, null, List.of(1L, 2L, 3L, 4L)))
+            .isInstanceOf(EtiquetaRecusadaException.class);
+    }
+
+    /** Trocar as etiquetas da próxima é editá-la: desfazer o pagamento da anterior não a descarta. */
+    @Test
+    void aProximaComOutrasEtiquetasNaoEstaComoNasceu() {
+        DespesaPlanejada atual = DespesaPlanejada.nova(
+            "Fone", VALOR, LocalDate.of(2027, 1, 10), USUARIO, Recorrencia.MENSAL, null, null, List.of(4L)
+        );
         DespesaPlanejada proxima = atual.proxima();
 
         assertThat(atual.gerouSemMudancas(proxima)).isTrue();
-        assertThat(atual.gerouSemMudancas(proxima.editada("Fone", VALOR, proxima.getPrazo(), Recorrencia.MENSAL, null, null, 5L)))
+        assertThat(atual.gerouSemMudancas(proxima.editada("Fone", VALOR, proxima.getPrazo(), Recorrencia.MENSAL, null, null, List.of(4L, 5L))))
             .isFalse();
     }
 }

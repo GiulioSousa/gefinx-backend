@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** As etiquetas das despesas planejadas. Excluir uma deixa sem etiqueta as despesas que ela marcava. */
+/** As etiquetas das despesas planejadas. Excluir uma a tira das despesas que ela marcava, e as outras delas ficam. */
 @RestController
 @RequestMapping("/api/planejamento/etiquetas")
 public class EtiquetaController {

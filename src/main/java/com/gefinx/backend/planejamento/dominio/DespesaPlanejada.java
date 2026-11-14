@@ -1,12 +1,15 @@
 package com.gefinx.backend.planejamento.dominio;
 
+import com.gefinx.backend.planejamento.dominio.excecoes.EtiquetaRecusadaException;
 import com.gefinx.backend.planejamento.dominio.excecoes.ParcelasRecusadasException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * Um pagamento que ainda vai acontecer: quanto e até quando. Não é transação — não mexe no
@@ -24,8 +27,10 @@ import java.util.Objects;
  * parcelada no cartão ou a mensalidade de um curso. Cada ocorrência leva o seu número, a
  * seguinte nasce com o próximo, e a última não gera outra. Sem os dois, a série não acaba.
  *
- * <p>{@code etiquetaId} é a marca visual — de que cartão é a compra —, opcional. Passa para a
- * ocorrência seguinte como o resto, e não muda conta nenhuma.
+ * <p>{@code etiquetaIds} são as marcas visuais — de que cartão é a compra, e mais um ou dois
+ * agrupamentos —, de nenhuma a {@link #MAXIMO_DE_ETIQUETAS}. Passam para a ocorrência seguinte
+ * como o resto, e não mudam conta nenhuma. A lista vem sem repetição e em ordem de id: é um
+ * conjunto, e a ordem fixa deixa duas despesas com as mesmas etiquetas iguais na comparação.
  */
 public class DespesaPlanejada {
 
@@ -34,6 +39,9 @@ public class DespesaPlanejada {
      * vencem até lá. Um mês de contas à vista, e a meta diária contando com elas.
      */
     public static final int DIAS_A_FRENTE = 30;
+
+    /** O cartão e mais dois agrupamentos: o que cabe na linha do prazo, no celular, sem quebrar. */
+    public static final int MAXIMO_DE_ETIQUETAS = 3;
 
     private final Long id;
     private final String descricao;
@@ -46,7 +54,7 @@ public class DespesaPlanejada {
     private final Long anteriorId;
     private final Integer parcela;
     private final Integer totalDeParcelas;
-    private final Long etiquetaId;
+    private final List<Long> etiquetaIds;
 
     public DespesaPlanejada(Long id, String descricao, BigDecimal valor, LocalDate prazo, Long usuarioId) {
         this(id, descricao, valor, prazo, usuarioId, null);
@@ -83,7 +91,7 @@ public class DespesaPlanejada {
         Integer parcela,
         Integer totalDeParcelas
     ) {
-        this(id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, anteriorId, parcela, totalDeParcelas, null);
+        this(id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, anteriorId, parcela, totalDeParcelas, List.of());
     }
 
     public DespesaPlanejada(
@@ -98,7 +106,7 @@ public class DespesaPlanejada {
         Long anteriorId,
         Integer parcela,
         Integer totalDeParcelas,
-        Long etiquetaId
+        List<Long> etiquetaIds
     ) {
         this.id = id;
         this.descricao = descricao;
@@ -111,7 +119,7 @@ public class DespesaPlanejada {
         this.anteriorId = anteriorId;
         this.parcela = parcela;
         this.totalDeParcelas = totalDeParcelas;
-        this.etiquetaId = etiquetaId;
+        this.etiquetaIds = etiquetaIds == null ? List.of() : List.copyOf(new TreeSet<>(etiquetaIds));
     }
 
     /** O dia do prazo vira a âncora do mensal: quem cadastra no dia 31 quer o 31. */
@@ -128,7 +136,7 @@ public class DespesaPlanejada {
         Integer parcela,
         Integer totalDeParcelas
     ) {
-        return nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, null);
+        return nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, List.of());
     }
 
     /** Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última: "2 de 6" vai até a 6. */
@@ -140,12 +148,13 @@ public class DespesaPlanejada {
         Recorrencia recorrencia,
         Integer parcela,
         Integer totalDeParcelas,
-        Long etiquetaId
+        List<Long> etiquetaIds
     ) {
         exigirParcelasValidas(recorrencia, parcela, totalDeParcelas);
+        exigirEtiquetasNoLimite(etiquetaIds);
         return new DespesaPlanejada(
             null, descricao, valor, prazo, usuarioId, null, recorrencia, ancora(recorrencia, prazo), null,
-            parcela, totalDeParcelas, etiquetaId
+            parcela, totalDeParcelas, etiquetaIds
         );
     }
 
@@ -166,7 +175,7 @@ public class DespesaPlanejada {
         Integer novaParcela,
         Integer novoTotalDeParcelas
     ) {
-        return editada(novaDescricao, novoValor, novoPrazo, novaRecorrencia, novaParcela, novoTotalDeParcelas, etiquetaId);
+        return editada(novaDescricao, novoValor, novoPrazo, novaRecorrencia, novaParcela, novoTotalDeParcelas, etiquetaIds);
     }
 
     public DespesaPlanejada editada(
@@ -176,21 +185,22 @@ public class DespesaPlanejada {
         Recorrencia novaRecorrencia,
         Integer novaParcela,
         Integer novoTotalDeParcelas,
-        Long novaEtiquetaId
+        List<Long> novasEtiquetaIds
     ) {
         exigirParcelasValidas(novaRecorrencia, novaParcela, novoTotalDeParcelas);
+        exigirEtiquetasNoLimite(novasEtiquetaIds);
         Integer novoDia = novaRecorrencia == Recorrencia.MENSAL && novoPrazo.equals(prazo) && diaDoVencimento != null
             ? diaDoVencimento
             : ancora(novaRecorrencia, novoPrazo);
         return new DespesaPlanejada(
             id, novaDescricao, novoValor, novoPrazo, usuarioId, transacaoId, novaRecorrencia, novoDia, anteriorId,
-            novaParcela, novoTotalDeParcelas, novaEtiquetaId
+            novaParcela, novoTotalDeParcelas, novasEtiquetaIds
         );
     }
 
     /**
      * Esta ocorrência com a mudança que outra da mesma série sofreu, de {@code antes} para
-     * {@code depois}: descrição, valor, repetição e etiqueta vêm de {@code depois}. Um prazo mudado
+     * {@code depois}: descrição, valor, repetição e etiquetas vêm de {@code depois}. Um prazo mudado
      * desloca este do mesmo jeito — na semanal, o mesmo número de dias; na mensal, o novo dia
      * do mês, que vira a âncora e cai no último dia dos meses que não o têm.
      *
@@ -212,7 +222,7 @@ public class DespesaPlanejada {
         boolean semRepeticao = depois.recorrencia == null;
         return new DespesaPlanejada(
             id, depois.descricao, depois.valor, novoPrazo, usuarioId, transacaoId, depois.recorrencia, novoDia, anteriorId,
-            semRepeticao ? null : parcela, semRepeticao ? null : totalDeParcelas, depois.etiquetaId
+            semRepeticao ? null : parcela, semRepeticao ? null : totalDeParcelas, depois.etiquetaIds
         );
     }
 
@@ -221,7 +231,7 @@ public class DespesaPlanejada {
         exigirParcelasValidas(recorrencia, novaParcela, novoTotalDeParcelas);
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, anteriorId,
-            novaParcela, novoTotalDeParcelas, etiquetaId
+            novaParcela, novoTotalDeParcelas, etiquetaIds
         );
     }
 
@@ -236,12 +246,12 @@ public class DespesaPlanejada {
     public DespesaPlanejada pagaCom(Long novaTransacaoId) {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, novaTransacaoId, recorrencia, diaDoVencimento, anteriorId,
-            parcela, totalDeParcelas, etiquetaId
+            parcela, totalDeParcelas, etiquetaIds
         );
     }
 
     /**
-     * A ocorrência seguinte: mesma descrição, mesma etiqueta, mesmo valor — que se edita se a conta vier
+     * A ocorrência seguinte: mesma descrição, mesmas etiquetas, mesmo valor — que se edita se a conta vier
      * diferente —, e o prazo um período adiante. Na parcelada, com o número seguinte. Só existe
      * para a que se repete e não é a última parcela.
      */
@@ -251,7 +261,7 @@ public class DespesaPlanejada {
         }
         return new DespesaPlanejada(
             null, descricao, valor, recorrencia.proximoPrazo(prazo, diaDoVencimento), usuarioId, null,
-            recorrencia, diaDoVencimento, id, parcela == null ? null : parcela + 1, totalDeParcelas, etiquetaId
+            recorrencia, diaDoVencimento, id, parcela == null ? null : parcela + 1, totalDeParcelas, etiquetaIds
         );
     }
 
@@ -268,13 +278,13 @@ public class DespesaPlanejada {
     public DespesaPlanejada ligadaA(Long novoAnteriorId) {
         return new DespesaPlanejada(
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia, diaDoVencimento, novoAnteriorId,
-            parcela, totalDeParcelas, etiquetaId
+            parcela, totalDeParcelas, etiquetaIds
         );
     }
 
     /** A série acaba nesta: nem paga, nem atrasada, ela gera a seguinte. */
     public DespesaPlanejada semRecorrencia() {
-        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId, null, null, etiquetaId);
+        return new DespesaPlanejada(id, descricao, valor, prazo, usuarioId, transacaoId, null, null, anteriorId, null, null, etiquetaIds);
     }
 
     /**
@@ -292,7 +302,7 @@ public class DespesaPlanejada {
 
     /**
      * Se {@code sucessora} está como {@link #proxima()} a gerou: mesma descrição, valor, prazo,
-     * repetição, parcela e etiqueta. É o que separa a próxima que se pode descartar ao desfazer este
+     * repetição, parcela e etiquetas. É o que separa a próxima que se pode descartar ao desfazer este
      * pagamento da que alguém já ajustou — o valor da conta do mês, por exemplo — e que deve
      * ficar.
      */
@@ -307,7 +317,7 @@ public class DespesaPlanejada {
             && sucessora.recorrencia == esperada.recorrencia
             && Objects.equals(sucessora.parcela, esperada.parcela)
             && Objects.equals(sucessora.totalDeParcelas, esperada.totalDeParcelas)
-            && Objects.equals(sucessora.etiquetaId, esperada.etiquetaId);
+            && sucessora.etiquetaIds.equals(esperada.etiquetaIds);
     }
 
     public boolean estaPaga() {
@@ -351,6 +361,15 @@ public class DespesaPlanejada {
         }
         if (parcela > totalDeParcelas) {
             throw new ParcelasRecusadasException("parcela", "A parcela não pode passar do total de parcelas");
+        }
+    }
+
+    /** Contadas sem repetição: a mesma etiqueta duas vezes é uma só. */
+    private static void exigirEtiquetasNoLimite(List<Long> etiquetaIds) {
+        if (etiquetaIds != null && new TreeSet<>(etiquetaIds).size() > MAXIMO_DE_ETIQUETAS) {
+            throw new EtiquetaRecusadaException(
+                "etiquetaIds", "Escolha no máximo " + MAXIMO_DE_ETIQUETAS + " etiquetas por despesa"
+            );
         }
     }
 
@@ -398,7 +417,7 @@ public class DespesaPlanejada {
         return totalDeParcelas;
     }
 
-    public Long getEtiquetaId() {
-        return etiquetaId;
+    public List<Long> getEtiquetaIds() {
+        return etiquetaIds;
     }
 }

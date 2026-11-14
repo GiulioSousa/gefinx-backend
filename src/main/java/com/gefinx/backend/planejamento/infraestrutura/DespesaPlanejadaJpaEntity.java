@@ -2,17 +2,25 @@ package com.gefinx.backend.planejamento.infraestrutura;
 
 import com.gefinx.backend.planejamento.dominio.DespesaPlanejada;
 import com.gefinx.backend.planejamento.dominio.Recorrencia;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
 
 /** {@code criado_em} fica sem mapeamento, pelo motivo registrado em {@code ContaJpaEntity}. */
 @Entity
@@ -54,8 +62,14 @@ public class DespesaPlanejadaJpaEntity {
     @Column(name = "total_de_parcelas")
     private Short totalDeParcelas;
 
-    @Column(name = "etiqueta_id")
-    private Long etiquetaId;
+    /**
+     * Carregadas junto, numa consulta só para todas as despesas da leitura ({@code SUBSELECT}): o
+     * plano lista dezenas de despesas, e cada uma pedindo as suas seriam dezenas de consultas.
+     */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @CollectionTable(name = "despesas_planejadas_etiquetas", joinColumns = @JoinColumn(name = "despesa_id"))
+    private Set<EtiquetaDaDespesaJpaEmbeddable> etiquetas = new HashSet<>();
 
     protected DespesaPlanejadaJpaEntity() {
     }
@@ -73,7 +87,9 @@ public class DespesaPlanejadaJpaEntity {
         entidade.anteriorId = despesa.getAnteriorId();
         entidade.parcela = paraShort(despesa.getParcela());
         entidade.totalDeParcelas = paraShort(despesa.getTotalDeParcelas());
-        entidade.etiquetaId = despesa.getEtiquetaId();
+        despesa.getEtiquetaIds().forEach(etiquetaId ->
+            entidade.etiquetas.add(new EtiquetaDaDespesaJpaEmbeddable(etiquetaId, despesa.getUsuarioId()))
+        );
         return entidade;
     }
 
@@ -82,7 +98,7 @@ public class DespesaPlanejadaJpaEntity {
             id, descricao, valor, prazo, usuarioId, transacaoId, recorrencia,
             diaDoVencimento == null ? null : diaDoVencimento.intValue(), anteriorId,
             parcela == null ? null : parcela.intValue(), totalDeParcelas == null ? null : totalDeParcelas.intValue(),
-            etiquetaId
+            etiquetas.stream().map(EtiquetaDaDespesaJpaEmbeddable::getEtiquetaId).toList()
         );
     }
 

@@ -105,12 +105,12 @@ public class DespesaPlanejadaService {
 
     @Transactional
     public DespesaPlanejada criar(Long usuarioId, String descricao, BigDecimal valor, LocalDate prazo, Recorrencia recorrencia) {
-        return criar(usuarioId, descricao, valor, prazo, recorrencia, null, null, null);
+        return criar(usuarioId, descricao, valor, prazo, recorrencia, null, null, List.of());
     }
 
     /**
-     * Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última parcela. A
-     * etiqueta, se vier, tem de ser de quem cria.
+     * Com {@code parcela} e {@code totalDeParcelas}, a série acaba na última parcela. As
+     * etiquetas, se vierem, têm de ser de quem cria.
      */
     @Transactional
     public DespesaPlanejada criar(
@@ -121,11 +121,11 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         Integer parcela,
         Integer totalDeParcelas,
-        Long etiquetaId
+        List<Long> etiquetaIds
     ) {
-        exigirEtiquetaDoUsuario(usuarioId, etiquetaId);
+        exigirEtiquetasDoUsuario(usuarioId, etiquetaIds);
         return repositorio.salvar(
-            DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, etiquetaId)
+            DespesaPlanejada.nova(descricao, valor, prazo, usuarioId, recorrencia, parcela, totalDeParcelas, etiquetaIds)
         );
     }
 
@@ -138,7 +138,7 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         boolean serieInteira
     ) {
-        return atualizar(usuarioId, id, descricao, valor, prazo, recorrencia, null, null, null, serieInteira);
+        return atualizar(usuarioId, id, descricao, valor, prazo, recorrencia, null, null, List.of(), serieInteira);
     }
 
     /**
@@ -154,8 +154,8 @@ public class DespesaPlanejadaService {
      * pendentes que passam da nova última saem do plano — reduzir o total de 6 para 4 tira a 5 e
      * a 6 —, mas uma paga acima do novo total recusa a edição: o que foi pago não some.
      *
-     * <p>A etiqueta segue o mesmo caminho da descrição: na série inteira, vale para todas as
-     * pendentes; sem, só para esta, e a seguinte que ela gerar nasce com a dela.
+     * <p>As etiquetas seguem o mesmo caminho da descrição: na série inteira, valem para todas as
+     * pendentes; sem, só para esta, e a seguinte que ela gerar nasce com as dela.
      */
     @Transactional
     public DespesaPlanejada atualizar(
@@ -167,12 +167,12 @@ public class DespesaPlanejadaService {
         Recorrencia recorrencia,
         Integer parcela,
         Integer totalDeParcelas,
-        Long etiquetaId,
+        List<Long> etiquetaIds,
         boolean serieInteira
     ) {
         DespesaPlanejada existente = buscarOuLancar(usuarioId, id);
-        exigirEtiquetaDoUsuario(usuarioId, etiquetaId);
-        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia, parcela, totalDeParcelas, etiquetaId);
+        exigirEtiquetasDoUsuario(usuarioId, etiquetaIds);
+        DespesaPlanejada editada = existente.editada(descricao, valor, prazo, recorrencia, parcela, totalDeParcelas, etiquetaIds);
         if (serieInteira && existente.seRepete()) {
             List<DespesaPlanejada> serie = ocorrenciasDaSerie(usuarioId, existente);
             int posicao = serie.indexOf(existente);
@@ -196,11 +196,16 @@ public class DespesaPlanejadaService {
     /**
      * A etiqueta de outra pessoa é recusada como a que não existe: dizer qual dos dois seria
      * contar a quem pergunta que o id existe. O banco recusaria de qualquer jeito, pela chave
-     * composta da V17, mas como erro.
+     * composta da V19, mas como erro.
      */
-    private void exigirEtiquetaDoUsuario(Long usuarioId, Long etiquetaId) {
-        if (etiquetaId != null && etiquetas.buscarPorIdEUsuario(etiquetaId, usuarioId).isEmpty()) {
-            throw new EtiquetaRecusadaException("etiquetaId", "Etiqueta não encontrada");
+    private void exigirEtiquetasDoUsuario(Long usuarioId, List<Long> etiquetaIds) {
+        if (etiquetaIds == null) {
+            return;
+        }
+        for (Long etiquetaId : etiquetaIds) {
+            if (etiquetas.buscarPorIdEUsuario(etiquetaId, usuarioId).isEmpty()) {
+                throw new EtiquetaRecusadaException("etiquetaIds", "Etiqueta não encontrada");
+            }
         }
     }
 

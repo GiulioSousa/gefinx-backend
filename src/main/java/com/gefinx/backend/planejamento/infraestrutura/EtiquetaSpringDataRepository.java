@@ -29,11 +29,15 @@ public interface EtiquetaSpringDataRepository extends JpaRepository<EtiquetaJpaE
     @Query("DELETE FROM EtiquetaJpaEntity e WHERE e.id = :id AND e.usuarioId = :usuarioId")
     int excluirDoUsuario(Long usuarioId, Long id);
 
-    /** Pares de etiqueta e quantidade. A despesa mora no mesmo contexto, e a contagem vem numa consulta só. */
-    @Query("""
-        SELECT d.etiquetaId, COUNT(d) FROM DespesaPlanejadaJpaEntity d
-         WHERE d.usuarioId = :usuarioId AND d.etiquetaId IS NOT NULL
-         GROUP BY d.etiquetaId
-        """)
+    /**
+     * Pares de etiqueta e quantidade. A despesa mora no mesmo contexto, e a contagem vem numa
+     * consulta só. Direto na ligação, que já traz o dono: a despesa com três etiquetas conta uma
+     * vez em cada uma.
+     */
+    @Query(value = """
+        SELECT etiqueta_id, COUNT(*) FROM despesas_planejadas_etiquetas
+         WHERE usuario_id = :usuarioId
+         GROUP BY etiqueta_id
+        """, nativeQuery = true)
     List<Object[]> contarDespesasPorEtiqueta(Long usuarioId);
 }

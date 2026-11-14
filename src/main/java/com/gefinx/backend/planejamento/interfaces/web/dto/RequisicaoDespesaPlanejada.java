@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Os limites de {@code descricao} e {@code valor} são os de {@code RequisicaoTransacao}, e
@@ -21,8 +22,9 @@ import java.time.LocalDate;
  * {@code totalDeParcelas} vêm juntos ou não vêm: "2 de 6" é a segunda de seis, e a série acaba
  * na sexta. O que depende dos dois — e da recorrência — é conferido no domínio.
  *
- * <p>{@code etiquetaId} ausente ou nulo é a despesa sem etiqueta. Que ela seja de quem a usa é
- * conferido no serviço.
+ * <p>{@code etiquetaIds} ausente, nulo ou vazio é a despesa sem etiqueta. Repetir um id conta
+ * uma vez só. Que elas sejam de quem as usa é conferido no serviço; o limite, também no domínio,
+ * contado já sem as repetidas.
  */
 public record RequisicaoDespesaPlanejada(
     @NotBlank(message = "A descrição é obrigatória")
@@ -47,6 +49,6 @@ public record RequisicaoDespesaPlanejada(
     @Max(value = 999, message = "O total de parcelas deve ser no máximo 999")
     Integer totalDeParcelas,
 
-    Long etiquetaId
+    List<@NotNull(message = "A etiqueta não pode ser nula") Long> etiquetaIds
 ) {
 }

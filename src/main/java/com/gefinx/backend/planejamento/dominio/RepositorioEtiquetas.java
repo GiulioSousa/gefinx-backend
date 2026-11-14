@@ -17,7 +17,7 @@ public interface RepositorioEtiquetas {
     Etiqueta salvar(Long usuarioId, Etiqueta etiqueta);
 
     /**
-     * As despesas que a perdem ficam sem etiqueta — o banco limpa a ligação. Falso quando não
+     * As despesas que a perdem ficam com as outras que tinham — o banco apaga só a ligação. Falso quando não
      * havia a etiqueta, ou ela era de outra pessoa: os dois dão o mesmo {@code 404}.
      */
     boolean excluir(Long usuarioId, Long id);

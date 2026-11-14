@@ -81,26 +81,27 @@ class DespesaPlanejadaServiceTest {
 
     @Test
     void criaComAEtiquetaDoProprioUsuario() {
-        servico.criar(USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, ETIQUETA);
+        servico.criar(USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, List.of(ETIQUETA));
 
-        verify(repositorio).salvar(argThat(despesa -> ETIQUETA.equals(despesa.getEtiquetaId())));
+        verify(repositorio).salvar(argThat(despesa -> despesa.getEtiquetaIds().equals(List.of(ETIQUETA))));
     }
 
     /** A de outra pessoa é recusada como a que não existe, antes de gravar qualquer coisa. */
     @Test
     void naoCriaComEtiquetaDeOutroUsuario() {
-        assertThatThrownBy(() -> servico.criar(OUTRO_USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, ETIQUETA))
+        assertThatThrownBy(() -> servico.criar(OUTRO_USUARIO, "Fone", BigDecimal.TEN, HOJE, null, null, null, List.of(ETIQUETA)))
             .isInstanceOf(EtiquetaRecusadaException.class)
             .hasMessage("Etiqueta não encontrada");
         verify(repositorio, never()).salvar(any());
     }
 
+    /** Basta uma das etiquetas ser alheia para recusar todas: nada é gravado pela metade. */
     @Test
     void naoEditaParaEtiquetaDeOutroUsuario() {
         when(etiquetas.buscarPorIdEUsuario(9L, USUARIO)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> servico.atualizar(
-            USUARIO, DESPESA, "Aluguel", BigDecimal.TEN, HOJE, null, null, null, 9L, false
+            USUARIO, DESPESA, "Aluguel", BigDecimal.TEN, HOJE, null, null, null, List.of(ETIQUETA, 9L), false
         )).isInstanceOf(EtiquetaRecusadaException.class);
         verify(repositorio, never()).salvar(any());
     }
@@ -364,17 +365,20 @@ class DespesaPlanejadaServiceTest {
         verify(repositorio, never()).salvar(argThat(despesa -> despesa.getId().equals(4L)));
     }
 
-    /** A etiqueta posta na série inteira chega às outras pendentes; tirada, sai de todas. */
+    /** As etiquetas postas na série inteira chegam às outras pendentes; tiradas, saem de todas. */
     @Test
-    void editarASerieLevaAEtiquetaAsOutrasPendentes() {
+    void editarASerieLevaAsEtiquetasAsOutrasPendentes() {
+        when(etiquetas.buscarPorIdEUsuario(4L, USUARIO)).thenReturn(Optional.of(new Etiqueta(4L, "Viagem", CorDaEtiqueta.AZUL)));
         when(repositorio.buscarPendentePorIdEUsuario(DESPESA, USUARIO)).thenReturn(Optional.of(semanal(DESPESA, 0, null, null)));
         when(repositorio.buscarSucessora(DESPESA)).thenReturn(Optional.of(semanal(6L, 7, DESPESA, null)));
         when(repositorio.buscarSucessora(6L)).thenReturn(Optional.empty());
 
-        servico.atualizar(USUARIO, DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE, Recorrencia.SEMANAL, null, null, ETIQUETA, true);
+        servico.atualizar(
+            USUARIO, DESPESA, "Aluguel do carro", BigDecimal.TEN, HOJE, Recorrencia.SEMANAL, null, null, List.of(4L, ETIQUETA), true
+        );
 
-        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && ETIQUETA.equals(despesa.getEtiquetaId())));
-        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(DESPESA) && ETIQUETA.equals(despesa.getEtiquetaId())));
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(6L) && despesa.getEtiquetaIds().equals(List.of(ETIQUETA, 4L))));
+        verify(repositorio).salvar(argThat(despesa -> despesa.getId().equals(DESPESA) && despesa.getEtiquetaIds().equals(List.of(ETIQUETA, 4L))));
     }
 
     /** A próxima vence nos 30 dias do plano: fica, porque a desfeita a teria de qualquer jeito. */

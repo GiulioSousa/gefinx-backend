@@ -6,6 +6,7 @@ import com.gefinx.backend.planejamento.dominio.Recorrencia;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * Uma despesa do histórico. Os campos do pagamento vêm nulos só no caso raro descrito em
@@ -25,7 +26,7 @@ public record RespostaDespesaPaga(
     Recorrencia recorrencia,
     Integer parcela,
     Integer totalDeParcelas,
-    Long etiquetaId
+    List<Long> etiquetaIds
 ) {
 
     public static RespostaDespesaPaga apartirDoDominio(DespesaPaga paga) {
@@ -44,7 +45,7 @@ public record RespostaDespesaPaga(
             paga.despesa().getRecorrencia(),
             paga.despesa().getParcela(),
             paga.despesa().getTotalDeParcelas(),
-            paga.despesa().getEtiquetaId()
+            paga.despesa().getEtiquetaIds()
         );
     }
 }

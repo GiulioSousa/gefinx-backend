@@ -53,7 +53,7 @@ public class EtiquetaService {
         return new EtiquetaEmUso(salva, repositorio.contarDespesasPorEtiqueta(usuarioId).getOrDefault(id, 0L));
     }
 
-    /** As despesas marcadas por ela ficam sem etiqueta, e nada mais muda nelas. */
+    /** As despesas marcadas por ela a perdem e ficam com as outras que tinham; nada mais muda nelas. */
     public void excluir(Long usuarioId, Long id) {
         if (!repositorio.excluir(usuarioId, id)) {
             throw new RecursoNaoEncontradoNoPlanejamentoException("Etiqueta não encontrada");
