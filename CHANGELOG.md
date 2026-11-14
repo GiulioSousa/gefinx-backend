@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/GiulioSousa/gefinx-backend/compare/v0.2.0...v0.3.0) (2026-11-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **planejamento:** a API de despesas planejadas troca o campo etiquetaId por etiquetaIds, uma lista de ate tres ids, na requisicao e nas respostas da despesa, do plano e do historico de pagas.
+
+### Funcionalidades
+
+* **planejamento:** permite ate tres etiquetas por despesa planejada ([408ce0a](https://github.com/GiulioSousa/gefinx-backend/commit/408ce0aa93dcf7ce7b3ab777e3fb1955541a029e))
+
 ## [0.2.0](https://github.com/GiulioSousa/gefinx-backend/compare/v0.1.0...v0.2.0) (2026-11-09)
 
 Custo diário na meta, e uma meta que acompanha cada lançamento. A meta diária passa a somar o
